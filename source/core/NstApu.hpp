@@ -50,7 +50,6 @@ namespace Nes
 		public:
 
 			explicit Apu(Cpu&);
-
 			void  Reset(bool);
 			void  PowerOff();
 			void  ClearBuffers();
@@ -61,10 +60,10 @@ namespace Nes
 			void  ClockDMA(uint=0);
 
 			Result SetSampleRate(dword);
-			Result SetSampleBits(uint);
 			Result SetSpeed(uint);
 			Result SetVolume(uint,uint);
 			uint   GetVolume(uint) const;
+			uint   GetCtrl();
 			void   Mute(bool);
 			void   SetAutoTranspose(bool);
 			void   SetGenie(bool);
@@ -80,7 +79,7 @@ namespace Nes
 			protected:
 
 				explicit Channel(Apu&);
-				~Channel();
+				virtual ~Channel();
 
 				void  Update() const;
 				void  Connect(bool);
@@ -461,7 +460,7 @@ namespace Nes
 				enum
 				{
 					MIN_FRQ                   = 2 + 1,
-					STEP_CHECK                = 0x00, // >= 0x1F is technically correct but will produce clicks/pops
+					STEP_CHECK                = 0x1F,
 					REG0_LINEAR_COUNTER_LOAD  = 0x7F,
 					REG0_LINEAR_COUNTER_START = 0x80,
 					REG2_WAVE_LENGTH_LOW      = 0x00FF,
@@ -601,7 +600,6 @@ namespace Nes
 				Settings();
 
 				dword rate;
-				uint bits;
 				byte speed;
 				bool muted;
 				bool transpose;
@@ -641,11 +639,6 @@ namespace Nes
 			dword GetSampleRate() const
 			{
 				return settings.rate;
-			}
-
-			uint GetSampleBits() const
-			{
-				return settings.bits;
 			}
 
 			uint GetSpeed() const

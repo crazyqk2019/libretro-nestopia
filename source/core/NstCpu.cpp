@@ -124,7 +124,7 @@ namespace Nes
 			0x00, 0x20, 0x00, 0x20, 0x04, 0x04, 0x04, 0x04,
 			0x00, 0x00, 0x00, 0x00, 0x08, 0x08, 0x08, 0x08,
 			0x00, 0x20, 0x00, 0x00, 0x08, 0x08, 0x08, 0x08,
-			0x00, 0x10, 0x00, 0x00, 0x00, 0x10, 0x00, 0x00,
+			0x00, 0x10, 0x00, 0x00, 0x10, 0x10, 0x10, 0x00,
 			0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 			0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 			0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -247,7 +247,12 @@ namespace Nes
 			if (hard)
 			{
 				Poke(0x4017, 0x00);
-				cycles.count = cycles.clock[RESET_CYCLES-1];
+				cycles.count = cycles.clock[RESET_CYCLES] + cycles.clock[0];
+			}
+			else
+			{
+				Poke(0x4017, apu.GetCtrl());
+				cycles.count = cycles.clock[RESET_CYCLES] + cycles.clock[0];
 			}
 		}
 
@@ -340,13 +345,13 @@ namespace Nes
 			{
 				const byte data[7] =
 				{
-					pc & 0xFF,
-					pc >> 8,
-					sp,
-					a,
-					x,
-					y,
-					flags.Pack()
+					static_cast<byte>(pc & 0xFF),
+					static_cast<byte>(pc >> 8),
+					static_cast<byte>(sp),
+					static_cast<byte>(a),
+					static_cast<byte>(x),
+					static_cast<byte>(y),
+					static_cast<byte>(flags.Pack())
 				};
 
 				state.Begin( AsciiId<'R','E','G'>::V ).Write( data ).End();
@@ -357,16 +362,16 @@ namespace Nes
 			{
 				const byte data[5] =
 				{
-					((interrupt.nmiClock != CYCLE_MAX) ? 0x01U : 0x00U) |
-					((interrupt.low & IRQ_FRAME)       ? 0x02U : 0x00U) |
-					((interrupt.low & IRQ_DMC)         ? 0x04U : 0x00U) |
-					((interrupt.low & IRQ_EXT)         ? 0x08U : 0x00U) |
-					(jammed                            ? 0x40U : 0x00U) |
-					(model == CPU_RP2A07 ? 0x80U : model == CPU_DENDY ? 0x20U : 0x00U),
-					cycles.count & 0xFF,
-					cycles.count >> 8,
-					(interrupt.nmiClock != CYCLE_MAX) ? interrupt.nmiClock+1 : 0,
-					(interrupt.irqClock != CYCLE_MAX) ? interrupt.irqClock+1 : 0
+					static_cast<byte>(((interrupt.nmiClock != CYCLE_MAX) ? 0x01U : 0x00U) |
+						((interrupt.low & IRQ_FRAME)       ? 0x02U : 0x00U) |
+						((interrupt.low & IRQ_DMC)         ? 0x04U : 0x00U) |
+						((interrupt.low & IRQ_EXT)         ? 0x08U : 0x00U) |
+						(jammed                            ? 0x40U : 0x00U) |
+						(model == CPU_RP2A07 ? 0x80U : model == CPU_DENDY ? 0x20U : 0x00U)),
+					static_cast<byte>(cycles.count & 0xFF),
+					static_cast<byte>(cycles.count >> 8),
+					static_cast<byte>((interrupt.nmiClock != CYCLE_MAX) ? interrupt.nmiClock+1 : 0),
+					static_cast<byte>((interrupt.irqClock != CYCLE_MAX) ? interrupt.irqClock+1 : 0)
 				};
 
 				state.Begin( AsciiId<'F','R','M'>::V ).Write( data ).End();
@@ -1277,6 +1282,7 @@ namespace Nes
 
 		NST_SINGLE_CALL void Cpu::Rts()
 		{
+			opcode = map.Peek8( pc );
 			pc = Pull16() + 1;
 			cycles.count += cycles.clock[RTS_CYCLES-1];
 		}
@@ -1287,6 +1293,7 @@ namespace Nes
 
 			{
 				const uint packed = Pull8();
+				opcode = map.Peek8( pc );
 				pc = Pull16();
 				flags.Unpack( packed );
 			}
@@ -1723,18 +1730,42 @@ namespace Nes
 			return address;
 		}
 
-		NST_SINGLE_CALL uint Cpu::Shx(uint address)
+		NST_SINGLE_CALL void Cpu::Shx(uint address)
 		{
-			address = x & ((address >> 8) + 1);
+			uint newaddress = (address + y);
+			uint data = x & ((address >> 8) + 1);
+			Peek((address & 0xFF00) | (newaddress & 0x00FF)); // Dummy read
+
+			if ((address ^ newaddress) & 0x100)
+			{
+				address = (newaddress & (x << 8)) | (newaddress & 0x00FF);
+			}
+			else
+			{
+				address = newaddress;
+			}
+
 			NotifyOp("SHX",1UL << 15);
-			return address;
+			StoreMem(address, data);
 		}
 
-		NST_SINGLE_CALL uint Cpu::Shy(uint address)
+		NST_SINGLE_CALL void Cpu::Shy(uint address)
 		{
-			address = y & ((address >> 8) + 1);
+			uint newaddress = (address + x);
+			uint data = y & ((address >> 8) + 1);
+			Peek((address & 0xFF00) | (newaddress & 0x00FF)); // Dummy read
+
+			if ((address ^ newaddress) & 0x100)
+			{
+				address = (newaddress & (y << 8)) | (newaddress & 0x00FF);
+			}
+			else
+			{
+				address = newaddress;
+			}
+
 			NotifyOp("SHY",1UL << 16);
-			return address;
+			StoreMem(address, data);
 		}
 
 		NST_NO_INLINE uint Cpu::Slo(uint data)
@@ -1775,6 +1806,7 @@ namespace Nes
 		{
 			NST_DEBUG_MSG("6502 BRK");
 
+			opcode = map.Peek8( pc );
 			Push16( pc + 1 );
 			Push8( flags.Pack() | Flags::B );
 			flags.i = Flags::I;
@@ -2095,6 +2127,16 @@ namespace Nes
 			Store##addr_( dst, instr_(dst) );         \
 		}
 
+		// Unofficial Opcodes SHX/SHY are edge cases
+		#define NES_I_W_U(instr_,hex_)                \
+                                                      \
+		void Cpu::op##hex_()                          \
+		{                                             \
+			const uint dst = FetchPc16();             \
+			cycles.count += cycles.clock[3];          \
+			instr_(dst);                              \
+		}
+
 		#define NES_IP_C_(instr_,ops_,ticks_,hex_)    \
                                                       \
 		void Cpu::op##hex_()                          \
@@ -2352,8 +2394,8 @@ namespace Nes
 		NES_I_W_A( Sha, AbsY,     0x9F )
 		NES_I_W_A( Sha, IndY,     0x93 )
 		NES_I_W_A( Shs, AbsY,     0x9B )
-		NES_I_W_A( Shx, AbsY,     0x9E )
-		NES_I_W_A( Shy, AbsX,     0x9C )
+		NES_I_W_U( Shx,           0x9E ) // Edge case: AbsY done internally
+		NES_I_W_U( Shy,           0x9C ) // Edge case: AbsX done internally
 		NES_IRW__( Slo, Zpg,      0x07 )
 		NES_IRW__( Slo, ZpgX,     0x17 )
 		NES_IRW__( Slo, Abs,      0x0F )

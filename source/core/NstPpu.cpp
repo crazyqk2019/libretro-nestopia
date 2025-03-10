@@ -102,11 +102,12 @@ namespace Nes
 		Ppu::Ppu(Cpu& c)
 		:
 		cpu    (c),
-		output (screen.pixels),
+		output (NULL),
 		model  (PPU_RP2C02),
 		rgbMap (NULL),
 		yuvMap (NULL)
 		{
+			output = Output(screen.pixels);
 			cycles.one = PPU_RP2C02_CC;
 			overclocked = false;
 			PowerOff();
@@ -169,7 +170,7 @@ namespace Nes
 			{
 				static const byte powerUpPalette[] =
 				{
-					0x3F,0x01,0x00,0x01,0x00,0x02,0x02,0x0D,
+					0x09,0x01,0x00,0x01,0x00,0x02,0x02,0x0D,
 					0x08,0x10,0x08,0x24,0x00,0x00,0x04,0x2C,
 					0x09,0x01,0x34,0x03,0x00,0x04,0x00,0x14,
 					0x08,0x3A,0x00,0x02,0x00,0x20,0x2C,0x08
@@ -240,8 +241,7 @@ namespace Nes
 			cycles.count = Cpu::CYCLE_MAX;
 
 			scanline = SCANLINE_VBLANK;
-			scanline_sleep = -1;
-			ssleep = -1;
+			scanline_sleep = 0;
 
 			io.address = 0;
 			io.pattern = 0;
@@ -314,17 +314,17 @@ namespace Nes
 			{
 				const byte data[11] =
 				{
-					regs.ctrl[0],
-					regs.ctrl[1],
-					regs.status,
-					scroll.address & 0xFF,
-					scroll.address >> 8,
-					scroll.latch & 0xFF,
-					scroll.latch >> 8,
-					scroll.xFine | scroll.toggle << 3,
-					regs.oam,
-					io.buffer,
-					io.latch
+					static_cast<byte>(regs.ctrl[0]),
+					static_cast<byte>(regs.ctrl[1]),
+					static_cast<byte>(regs.status),
+					static_cast<byte>(scroll.address & 0xFF),
+					static_cast<byte>(scroll.address >> 8),
+					static_cast<byte>(scroll.latch & 0xFF),
+					static_cast<byte>(scroll.latch >> 8),
+					static_cast<byte>(scroll.xFine | scroll.toggle << 3),
+					static_cast<byte>(regs.oam),
+					static_cast<byte>(io.buffer),
+					static_cast<byte>(io.latch)
 				};
 
 				state.Begin( AsciiId<'R','E','G'>::V ).Write( data ).End();
@@ -401,6 +401,8 @@ namespace Nes
 
 				state.End();
 			}
+
+			output.bgColor = palette.ram[0] & uint(Palette::COLOR);
 
 			UpdateStates();
 		}
@@ -493,17 +495,14 @@ namespace Nes
 
 			Cycle frame;
 
-			scanline_sleep = -1;
-
 			switch (model)
 			{
 				case PPU_RP2C02:
 
 					regs.frame ^= Regs::FRAME_ODD;
+					// fallthrough
 
 				default:
-
-					ssleep = PPU_RP2C02_VSLEEP - 2;
 
 					if (cycles.hClock == HCLOCK_DUMMY)
 					{
@@ -521,8 +520,6 @@ namespace Nes
 
 				case PPU_RP2C07:
 
-					ssleep = PPU_RP2C07_VSLEEP - 2;
-
 					if (cycles.hClock == HCLOCK_DUMMY)
 					{
 						cycles.vClock = PPU_RP2C07_HVINT / PPU_RP2C07_CC - HCLOCK_DUMMY;
@@ -538,8 +535,6 @@ namespace Nes
 					break;
 
 				case PPU_DENDY:
-
-					ssleep = PPU_DENDY_VSLEEP - 2;
 
 					if (cycles.hClock == HCLOCK_DUMMY)
 					{
@@ -698,6 +693,12 @@ namespace Nes
 				io.line.Toggle( io.address, GetCycles() );
 		}
 
+		NST_FORCE_INLINE void Ppu::UpdateScrollAddressLine()
+		{
+			if (io.line)
+				io.line.Toggle( scroll.address & 0x3FFF, cpu.GetCycles() );
+		}
+
 		NST_FORCE_INLINE void Ppu::UpdateVramAddress()
 		{
 			if ((scanline != SCANLINE_VBLANK ) && (regs.ctrl[1] & Regs::CTRL1_BG_SP_ENABLED))
@@ -777,6 +778,17 @@ namespace Nes
 			return (regs.ctrl[1] & Regs::CTRL1_EMPHASIS) << 1;
 		}
 
+		NST_FORCE_INLINE void Ppu::UpdateDecay(byte mask)
+		{
+			Cycle curCyc = cpu.GetCycles();
+
+			for (uint i = 0; i < 8; ++i)
+			{
+				if (mask & (1 << i))
+					decay.timestamp[i] = curCyc;
+			}
+		}
+
 		NES_POKE_D(Ppu,2000)
 		{
 			Update( cycles.one );
@@ -789,6 +801,8 @@ namespace Nes
 				oam.height = (data >> 2 & 8) + 8;
 
 				io.latch = data;
+				UpdateDecay(0xFF);
+
 				data = regs.ctrl[0] ;
 				regs.ctrl[0] = io.latch;
 
@@ -824,10 +838,12 @@ namespace Nes
 					oam.mask = oam.show[pos];
 
 					if ((regs.ctrl[1] & Regs::CTRL1_BG_SP_ENABLED) && !(data & Regs::CTRL1_BG_SP_ENABLED))
-						UpdateAddressLine(scroll.address & 0x3fff);
+						UpdateScrollAddressLine();
 				}
 
 				io.latch = data;
+				UpdateDecay(0xFF);
+
 				data = (regs.ctrl[1] ^ data) & (Regs::CTRL1_EMPHASIS|Regs::CTRL1_MONOCHROME);
 				regs.ctrl[1] = io.latch;
 
@@ -855,13 +871,22 @@ namespace Nes
 		{
 			Update( cycles.one, address );
 
+			byte mask = 0xE0;
 			uint status = regs.status & 0xFF;
 
 			regs.status &= (Regs::STATUS_VBLANK^0xFFU);
 			scroll.toggle = 0;
 			io.latch = (io.latch & Regs::STATUS_LATCH) | status;
+			UpdateDecay(mask);
 
-			return io.latch;
+			Cycle curCyc = cpu.GetCycles();
+			for (uint i = 0; i < 5; ++i)
+			{
+				if ((curCyc - decay.timestamp[i]) < 24576)
+					mask |= (1 << i);
+			}
+
+			return io.latch & mask;
 		}
 
 		NES_PEEK_A(Ppu,2002_RC2C05_01_04)
@@ -885,6 +910,7 @@ namespace Nes
 
 			regs.oam = data;
 			io.latch = data;
+			UpdateDecay(0xFF);
 		}
 
 		NES_POKE_D(Ppu,2004)
@@ -893,6 +919,9 @@ namespace Nes
 
 			NST_ASSERT( regs.oam < Oam::SIZE );
 			NST_VERIFY( IsDead() );
+
+			io.latch = data;
+			UpdateDecay(0xFF);
 
 			if (IsDead())
 			{
@@ -906,7 +935,6 @@ namespace Nes
 
 			byte* const NST_RESTRICT value = oam.ram + regs.oam;
 			regs.oam = (regs.oam + 1) & 0xFF;
-			io.latch = data;
 			*value = data;
 		}
 
@@ -917,12 +945,14 @@ namespace Nes
 			if (!(regs.ctrl[1] & Regs::CTRL1_BG_SP_ENABLED) || cpu.GetCycles() - (cpu.GetFrameCycles() - (341 * 241) * cycles.one) >= (341 * 240) * cycles.one)
 			{
 				io.latch = oam.ram[regs.oam];
+				UpdateDecay(0xFF);
 			}
 			else
 			{
 				Update( cycles.one );
 
 				io.latch = oam.latch;
+				UpdateDecay(0xFF);
 			}
 
 			return io.latch;
@@ -937,6 +967,7 @@ namespace Nes
 			if (cpu.GetCycles() >= cycles.reset)
 			{
 				io.latch = data;
+				UpdateDecay(0xFF);
 
 				if (scroll.toggle ^= 1)
 				{
@@ -959,6 +990,7 @@ namespace Nes
 			if (cpu.GetCycles() >= cycles.reset)
 			{
 				io.latch = data;
+				UpdateDecay(0xFF);
 
 				if (scroll.toggle ^= 1)
 				{
@@ -968,10 +1000,7 @@ namespace Nes
 				{
 					scroll.latch = (scroll.latch & 0x7F00) | data;
 					scroll.address = scroll.latch;
-					if (!(regs.ctrl[1] & Regs::CTRL1_BG_SP_ENABLED) ||
-					    (scanline == SCANLINE_VBLANK)) {
-						UpdateAddressLine(scroll.address & 0x3fff);
-					}
+					UpdateScrollAddressLine();
 				}
 			}
 		}
@@ -983,15 +1012,14 @@ namespace Nes
 			uint address = scroll.address;
 
 			UpdateVramAddress();
-			if (!(regs.ctrl[1] & Regs::CTRL1_BG_SP_ENABLED) ||
-			    (scanline == SCANLINE_VBLANK)) {
+
+			if (!(regs.ctrl[1] & Regs::CTRL1_BG_SP_ENABLED) || (scanline == SCANLINE_VBLANK))
 				UpdateAddressLine(scroll.address & 0x3fff);
-			}
-			else {
+			else
 				return;
-			}
 
 			io.latch = data;
+			UpdateDecay(0xFF);
 
 			if ((address & 0x3F00) == 0x3F00)
 			{
@@ -1007,7 +1035,7 @@ namespace Nes
 					palette.ram[address ^ 0x10] = data;
 					output.palette[address ^ 0x10] = final;
 				}
-				
+
 				output.bgColor = palette.ram[0] & uint(Palette::COLOR);
 			}
 			else
@@ -1023,17 +1051,39 @@ namespace Nes
 
 		NES_PEEK_A(Ppu,2007)
 		{
+			byte mask = 0xFF;
+			byte cache = io.latch;
+
 			Update( cycles.one, address );
+
+			Cycle curCyc = cpu.GetCycles();
+			Cycle delta = curCyc - decay.rd2007;
+			decay.rd2007 = curCyc;
+
+			bool fastread = (delta <= 12);
 
 			address = scroll.address & 0x3FFF;
 			UpdateVramAddress();
-			if (!(regs.ctrl[1] & Regs::CTRL1_BG_SP_ENABLED) ||
-			    (scanline == SCANLINE_VBLANK)) {
+
+			if (!(regs.ctrl[1] & Regs::CTRL1_BG_SP_ENABLED) || (scanline == SCANLINE_VBLANK))
 				UpdateAddressLine(scroll.address & 0x3fff);
+
+			if ((address & 0x3F00) == 0x3F00) // Palette
+			{
+				io.latch = (io.latch & 0xC0) | (palette.ram[address & 0x1F] & Coloring());
+				mask = 0x3F;
+			}
+			else // Non-Palette
+			{
+				io.latch = io.buffer;
 			}
 
-			io.latch = (address & 0x3F00) != 0x3F00 ? io.buffer : palette.ram[address & 0x1F] & Coloring();
+			UpdateDecay(mask);
+
 			io.buffer = (address >= 0x2000 ? nmt.FetchName( address ) : chr.FetchPattern( address ));
+
+			if (fastread)
+				io.latch = cache;
 
 			return io.latch;
 		}
@@ -1041,10 +1091,14 @@ namespace Nes
 		NES_POKE_D(Ppu,2xxx)
 		{
 			io.latch = data;
+			UpdateDecay(0xFF);
 		}
 
 		NES_PEEK(Ppu,2xxx)
 		{
+			if ((cpu.GetCycles() - decay.timestamp[0]) > 24576)
+				return 0;
+
 			return io.latch;
 		}
 
@@ -1057,9 +1111,6 @@ namespace Nes
 
 		NES_POKE_D(Ppu,4014)
 		{
-			if (cpu.IsOddCycle())
-				cpu.StealCycles( cpu.GetClock() );
-
 			Update( cycles.one );
 			cpu.StealCycles( cpu.GetClock() );
 
@@ -1069,24 +1120,39 @@ namespace Nes
 
 			if ((regs.oam == 0x00 && data < 0x2000) && (!(regs.ctrl[1] & Regs::CTRL1_BG_SP_ENABLED) || cpu.GetCycles() <= GetHVIntClock() - cpu.GetClock() * 512))
 			{
-				cpu.StealCycles( cpu.GetClock() * 512 );
-
 				const byte* const NST_RESTRICT cpuRam = cpu.GetRam() + (data & (Cpu::RAM_SIZE-1));
 				byte* const NST_RESTRICT oamRam = oam.ram;
 
-				for (uint i=0x00; i < 0x100; i += 0x4)
+				cpu.SetOamDMA(true);
+
+				for (uint i=0x00; i < 0x100; i++)
 				{
-					oamRam[i+0x0] = cpuRam[i+0x0];
-					oamRam[i+0x1] = cpuRam[i+0x1];
-					oamRam[i+0x2] = cpuRam[i+0x2] & 0xE3U;
-					oamRam[i+0x3] = cpuRam[i+0x3];
+					cpu.SetOamDMACycle(i);
+
+					cpu.StealCycles( cpu.GetClock() );
+					cpu.Update();
+
+					oamRam[i] = cpuRam[i];
+					if ((i & 0x03) == 0x02)
+					{
+						oamRam[i] &= 0xE3U;
+					}
+
+					cpu.StealCycles( cpu.GetClock() );
+					cpu.Update();
 				}
 
+				cpu.SetOamDMACycle(0);
+				cpu.SetOamDMA(false);
+
 				io.latch = oamRam[0xFF];
+				UpdateDecay(0xFF);
 			}
 			else do
 			{
 				io.latch = cpu.Peek( data++ );
+				UpdateDecay(0xFF);
+
 				cpu.StealCycles( cpu.GetClock() );
 
 				Update( cycles.one );
@@ -1138,7 +1204,7 @@ namespace Nes
 			else switch (address & Y_TILE)
 			{
 				default:         address = (address & (Y_FINE ^ 0x7FFFU)) + (1U << 5); break;
-				case (29U << 5): address ^= NAME_HIGH;
+				case (29U << 5): address ^= NAME_HIGH; // fallthrough
 				case (31U << 5): address &= (Y_FINE|Y_TILE) ^ 0x7FFFU; break;
 			}
 		}
@@ -1458,7 +1524,7 @@ namespace Nes
 		{
 			NST_VERIFY( cycles.count != cycles.hClock );
 
-			if (scanline_sleep >= 0)
+			if (scanline_sleep) // Extra lines between VBLANK and NMI in Dendy mode
 			{
 				switch (cycles.hClock)
 				{
@@ -1804,18 +1870,19 @@ namespace Nes
 
 						if (cycles.count <= 338)
 							break;
+						// fallthrough
 
 					case 338:
 
-						if (scanline_sleep++ != ssleep)
+						if (++scanline_sleep < PPU_DENDY_VSLEEP)
 						{
 							cycles.hClock = 0;
-							cycles.vClock += 341;
+							cycles.vClock += HCLOCK_DUMMY;
 
-							if (cycles.count <= 341)
+							if (cycles.count <= HCLOCK_DUMMY)
 								break;
 
-							cycles.count -= 341;
+							cycles.count -= HCLOCK_DUMMY;
 
 							goto HActiveSleep;
 						}
@@ -1826,39 +1893,16 @@ namespace Nes
 							if (cycles.count <= HCLOCK_VBLANK_0)
 								break;
 						}
+						// fallthrough
 
 					case HCLOCK_VBLANK_0:
-					VBlank0:
-
-						regs.status |= Regs::STATUS_VBLANKING;
-						cycles.hClock = HCLOCK_VBLANK_1;
-
-						if (cycles.count <= HCLOCK_VBLANK_1)
-							break;
+						goto VBlank0;
 
 					case HCLOCK_VBLANK_1:
-					VBlank1:
-
-						regs.status = (regs.status & 0xFF) | (regs.status >> 1 & Regs::STATUS_VBLANK);
-						oam.visible = oam.output;
-						cycles.hClock = HCLOCK_VBLANK_2;
-
-						if (cycles.count <= HCLOCK_VBLANK_2)
-							break;
+						goto VBlank1;
 
 					case HCLOCK_VBLANK_2:
-					VBlank2:
-
-						scanline_sleep = -1;
-
-						cycles.hClock = HCLOCK_DUMMY;
-						cycles.count = Cpu::CYCLE_MAX;
-						cycles.reset = 0;
-
-						if (regs.ctrl[0] & regs.status & Regs::CTRL0_NMI)
-							cpu.DoNMI( cpu.GetFrameCycles() );
-
-						return;
+						goto VBlank2;
 				}
 			}
 			else if (regs.ctrl[1] & Regs::CTRL1_BG_SP_ENABLED)
@@ -1905,6 +1949,7 @@ namespace Nes
 
 						if (cycles.count <= cycles.hClock)
 							break;
+						// fallthrough
 
 					case 1:
 					case 9:
@@ -1945,6 +1990,7 @@ namespace Nes
 
 						if (cycles.count <= cycles.hClock)
 							break;
+						// fallthrough
 
 					case 2:
 					case 10:
@@ -1985,6 +2031,7 @@ namespace Nes
 
 						if (cycles.count <= cycles.hClock)
 							break;
+						// fallthrough
 
 					case 3:
 					case 11:
@@ -2030,6 +2077,7 @@ namespace Nes
 
 						if (cycles.count <= cycles.hClock)
 							break;
+						// fallthrough
 
 					case 4:
 					case 12:
@@ -2070,6 +2118,7 @@ namespace Nes
 
 						if (cycles.count <= cycles.hClock)
 							break;
+						// fallthrough
 
 					case 5:
 					case 13:
@@ -2110,6 +2159,7 @@ namespace Nes
 
 						if (cycles.count <= cycles.hClock)
 							break;
+						// fallthrough
 
 					case 6:
 					case 14:
@@ -2153,6 +2203,7 @@ namespace Nes
 
 						if (cycles.hClock == 255)
 							goto HActive255;
+						// fallthrough
 
 					case 7:
 					case 15:
@@ -2197,6 +2248,7 @@ namespace Nes
 
 						if (cycles.hClock != 64)
 							goto HActive;
+						// fallthrough
 
 					case 64:
 
@@ -2215,6 +2267,7 @@ namespace Nes
 
 						if (cycles.count <= 256)
 							break;
+						// fallthrough
 
 					case 256:
 
@@ -2224,6 +2277,7 @@ namespace Nes
 
 						if (cycles.count <= 257)
 							break;
+						// fallthrough
 
 					case 257:
 
@@ -2236,6 +2290,7 @@ namespace Nes
 
 						if (cycles.count <= 258)
 							break;
+						// fallthrough
 
 					case 258:
 					case 266:
@@ -2252,6 +2307,7 @@ namespace Nes
 
 						if (cycles.count <= cycles.hClock)
 							break;
+						// fallthrough
 
 					case 260:
 					case 268:
@@ -2271,6 +2327,7 @@ namespace Nes
 						if (cycles.count <= ++cycles.hClock)
 							break;
 					}
+					// fallthrough
 
 					case 261:
 					case 269:
@@ -2286,6 +2343,7 @@ namespace Nes
 
 						if (cycles.count <= ++cycles.hClock)
 							break;
+						// fallthrough
 
 					case 262:
 					case 270:
@@ -2300,6 +2358,7 @@ namespace Nes
 
 						if (cycles.count <= ++cycles.hClock)
 							break;
+						// fallthrough
 
 					case 263:
 					case 271:
@@ -2321,6 +2380,7 @@ namespace Nes
 						if (cycles.hClock == 320)
 							goto HBlankBg;
 					}
+					// fallthrough
 
 					case 264:
 					case 272:
@@ -2337,6 +2397,7 @@ namespace Nes
 							break;
 
 						goto HBlankSp;
+						// fallthrough
 
 					case 320:
 					HBlankBg:
@@ -2358,6 +2419,7 @@ namespace Nes
 
 						if (cycles.count <= 321)
 							break;
+						// fallthrough
 
 					case 321:
 
@@ -2366,6 +2428,7 @@ namespace Nes
 
 						if (cycles.count <= 322)
 							break;
+						// fallthrough
 
 					case 322:
 
@@ -2374,6 +2437,7 @@ namespace Nes
 
 						if (cycles.count <= 323)
 							break;
+						// fallthrough
 
 					case 323:
 
@@ -2383,6 +2447,7 @@ namespace Nes
 
 						if (cycles.count <= 324)
 							break;
+						// fallthrough
 
 					case 324:
 
@@ -2391,6 +2456,7 @@ namespace Nes
 
 						if (cycles.count <= 325)
 							break;
+						// fallthrough
 
 					case 325:
 
@@ -2399,6 +2465,7 @@ namespace Nes
 
 						if (cycles.count <= 326)
 							break;
+						// fallthrough
 
 					case 326:
 
@@ -2407,6 +2474,7 @@ namespace Nes
 
 						if (cycles.count <= 327)
 							break;
+						// fallthrough
 
 					case 327:
 
@@ -2415,6 +2483,7 @@ namespace Nes
 
 						if (cycles.count <= 328)
 							break;
+						// fallthrough
 
 					case 328:
 
@@ -2424,6 +2493,7 @@ namespace Nes
 
 						if (cycles.count <= 329)
 							break;
+						// fallthrough
 
 					case 329:
 
@@ -2432,6 +2502,7 @@ namespace Nes
 
 						if (cycles.count <= 330)
 							break;
+						// fallthrough
 
 					case 330:
 
@@ -2440,6 +2511,7 @@ namespace Nes
 
 						if (cycles.count <= 331)
 							break;
+						// fallthrough
 
 					case 331:
 
@@ -2449,6 +2521,7 @@ namespace Nes
 
 						if (cycles.count <= 332)
 							break;
+						// fallthrough
 
 					case 332:
 
@@ -2457,6 +2530,7 @@ namespace Nes
 
 						if (cycles.count <= 333)
 							break;
+						// fallthrough
 
 					case 333:
 
@@ -2465,6 +2539,7 @@ namespace Nes
 
 						if (cycles.count <= 334)
 							break;
+						// fallthrough
 
 					case 334:
 
@@ -2473,6 +2548,7 @@ namespace Nes
 
 						if (cycles.count <= 335)
 							break;
+						// fallthrough
 
 					case 335:
 
@@ -2481,6 +2557,7 @@ namespace Nes
 
 						if (cycles.count <= 336)
 							break;
+						// fallthrough
 
 					case 336:
 
@@ -2489,6 +2566,7 @@ namespace Nes
 
 						if (cycles.count <= 337)
 							break;
+						// fallthrough
 
 					case 337:
 
@@ -2512,6 +2590,7 @@ namespace Nes
 
 						if (cycles.count <= 338)
 							break;
+						// fallthrough
 
 					case 338:
 
@@ -2519,7 +2598,7 @@ namespace Nes
 
 						if (scanline++ != 239)
 						{
-							const uint line = (scanline != 0 || model != PPU_RP2C02 || !regs.frame ? 341 : 340);
+							const uint line = (scanline != 0 || model != PPU_RP2C02 || !regs.frame ? HCLOCK_DUMMY : (HCLOCK_DUMMY - 1));
 
 							cycles.hClock = 0;
 							cycles.vClock += line;
@@ -2533,16 +2612,17 @@ namespace Nes
 						}
 						else
 						{
-							if (ssleep >= 0)
+							if (model == PPU_DENDY)
 							{
-								scanline_sleep = 0;
-								cycles.hClock = 0;
-								cycles.vClock += 341;
+								scanline_sleep = 1;
 
-								if (cycles.count <= 341)
+								cycles.hClock = 0;
+								cycles.vClock += HCLOCK_DUMMY;
+
+								if (cycles.count <= HCLOCK_DUMMY)
 									break;
 
-								cycles.count -= 341;
+								cycles.count -= HCLOCK_DUMMY;
 
 								goto HActiveSleep;
 							}
@@ -2554,15 +2634,42 @@ namespace Nes
 									break;
 							}
 						}
+						// fallthrough
 
 					case HCLOCK_VBLANK_0:
-						goto VBlank0;
+					VBlank0:
+
+						regs.status |= Regs::STATUS_VBLANKING;
+						cycles.hClock = HCLOCK_VBLANK_1;
+
+						if (cycles.count <= HCLOCK_VBLANK_1)
+							break;
+						// fallthrough
 
 					case HCLOCK_VBLANK_1:
-						goto VBlank1;
+					VBlank1:
+
+						regs.status = (regs.status & 0xFF) | (regs.status >> 1 & Regs::STATUS_VBLANK);
+						oam.visible = oam.output;
+						cycles.hClock = HCLOCK_VBLANK_2;
+
+						if (cycles.count <= HCLOCK_VBLANK_2)
+							break;
+						// fallthrough
 
 					case HCLOCK_VBLANK_2:
-						goto VBlank2;
+					VBlank2:
+
+						scanline_sleep = 0;
+
+						cycles.hClock = HCLOCK_DUMMY;
+						cycles.count = Cpu::CYCLE_MAX;
+						cycles.reset = 0;
+
+						if (regs.ctrl[0] & regs.status & Regs::CTRL0_NMI)
+							cpu.DoNMI( cpu.GetFrameCycles() );
+
+						return;
 
 					case HCLOCK_BOOT:
 						goto Boot;
@@ -2571,6 +2678,7 @@ namespace Nes
 
 						regs.status = 0;
 						scanline = SCANLINE_HDUMMY;
+						// fallthrough
 
 					case HCLOCK_DUMMY+8:
 					case HCLOCK_DUMMY+16:
@@ -2610,6 +2718,7 @@ namespace Nes
 
 						if (cycles.count <= cycles.hClock)
 							break;
+						// fallthrough
 
 					case HCLOCK_DUMMY+2:
 					case HCLOCK_DUMMY+10:
@@ -2649,6 +2758,7 @@ namespace Nes
 
 						if (cycles.count <= cycles.hClock)
 							break;
+						// fallthrough
 
 					case HCLOCK_DUMMY+4:
 					case HCLOCK_DUMMY+12:
@@ -2688,6 +2798,7 @@ namespace Nes
 
 						if (cycles.count <= cycles.hClock)
 							break;
+						// fallthrough
 
 					case HCLOCK_DUMMY+6:
 					case HCLOCK_DUMMY+14:
@@ -2730,6 +2841,7 @@ namespace Nes
 
 						if (cycles.hClock != HCLOCK_DUMMY+256)
 							goto HDummyBg;
+						// fallthrough
 
 					case HCLOCK_DUMMY+256:
 					case HCLOCK_DUMMY+264:
@@ -2745,6 +2857,7 @@ namespace Nes
 
 						if (cycles.count <= cycles.hClock)
 							break;
+						// fallthrough
 
 					case HCLOCK_DUMMY+258:
 					case HCLOCK_DUMMY+266:
@@ -2760,6 +2873,7 @@ namespace Nes
 
 						if (cycles.count <= cycles.hClock)
 							break;
+						// fallthrough
 
 					case HCLOCK_DUMMY+260:
 					case HCLOCK_DUMMY+268:
@@ -2775,6 +2889,7 @@ namespace Nes
 
 						if (cycles.count <= cycles.hClock)
 							break;
+						// fallthrough
 
 					case HCLOCK_DUMMY+262:
 					case HCLOCK_DUMMY+270:
@@ -2808,6 +2923,7 @@ namespace Nes
 
 							goto HBlankBg;
 						}
+						// fallthrough
 
 					case HCLOCK_DUMMY+304:
 
@@ -3105,6 +3221,7 @@ namespace Nes
 						if (cycles.count <= 256)
 							break;
 					}
+					// fallthrough
 
 					case 256:
 
@@ -3112,6 +3229,7 @@ namespace Nes
 
 						if (cycles.count <= 257)
 							break;
+						// fallthrough
 
 					case 257:
 
@@ -3123,6 +3241,7 @@ namespace Nes
 
 						if (cycles.count <= 258)
 							break;
+						// fallthrough
 
 					case 258:
 					case 260:
@@ -3177,6 +3296,7 @@ namespace Nes
 							cycles.hClock = cycles.count + ((cycles.count & 0x7) == 3 || (cycles.count & 0x7) == 1);
 							break;
 						}
+						// fallthrough
 
 					case 320:
 					HBlankOff:
@@ -3193,6 +3313,7 @@ namespace Nes
 
 						if (cycles.count <= 321)
 							break;
+						// fallthrough
 
 					case 321:
 					case 322:
@@ -3216,6 +3337,7 @@ namespace Nes
 
 						if (cycles.count <= 338)
 							break;
+						// fallthrough
 
 					case 338:
 
@@ -3227,29 +3349,29 @@ namespace Nes
 							if (scanline == 0 && model == PPU_RP2C02)
 								output.burstPhase = (output.burstPhase + 1) % 3;
 
-							cycles.vClock += 341;
+							cycles.vClock += HCLOCK_DUMMY;
 							cycles.hClock = 0;
 
-							if (cycles.count <= 341)
+							if (cycles.count <= HCLOCK_DUMMY)
 								break;
 
-							cycles.count -= 341;
+							cycles.count -= HCLOCK_DUMMY;
 
 							goto HActiveOff;
 						}
- 						else
- 						{
-							if (ssleep >= 0)
+						else
+						{
+							if (model == PPU_DENDY)
 							{
-								scanline_sleep = 0;
+								scanline_sleep = 1;
 
-								cycles.vClock += 341;
+								cycles.vClock += HCLOCK_DUMMY;
 								cycles.hClock = 0;
 
-								if (cycles.count <= 341)
+								if (cycles.count <= HCLOCK_DUMMY)
 									break;
 
-								cycles.count -= 341;
+								cycles.count -= HCLOCK_DUMMY;
 
 								goto HActiveSleep;
 							}
@@ -3261,6 +3383,7 @@ namespace Nes
 									break;
 							}
 						}
+						// fallthrough
 
 					case HCLOCK_VBLANK_0:
 						goto VBlank0;
@@ -3293,6 +3416,7 @@ namespace Nes
 
 						regs.status = 0;
 						scanline = SCANLINE_HDUMMY;
+						// fallthrough
 
 					case HCLOCK_DUMMY+2:
 					case HCLOCK_DUMMY+4:
@@ -3460,6 +3584,7 @@ namespace Nes
 						if (cycles.count <= HCLOCK_DUMMY+318)
 							break;
 					}
+					// fallthrough
 
 					case HCLOCK_DUMMY+318:
 

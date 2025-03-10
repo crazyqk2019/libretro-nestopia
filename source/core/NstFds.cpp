@@ -373,7 +373,7 @@ namespace Nes
 					{
 						State::Loader::Data<4> data( state );
 
-						io.ctrl = data[0];
+						io.ctrl = adapter.ctrl = data[0];
 						io.port = data[1];
 						break;
 					}
@@ -487,10 +487,10 @@ namespace Nes
 			{
 				const byte data[4] =
 				{
-					disks.sides.count,
-					(disks.current != Disks::EJECTED) | (disks.writeProtected ? 0x2U : 0x0U),
-					disks.current != Disks::EJECTED ? disks.current : 0xFF,
-					disks.current != Disks::EJECTED ? disks.mounting : 0
+					static_cast<byte>(disks.sides.count),
+					static_cast<byte>((disks.current != Disks::EJECTED) | (disks.writeProtected ? 0x2U : 0x0U)),
+					static_cast<byte>(disks.current != Disks::EJECTED ? disks.current : 0xFF),
+					static_cast<byte>(disks.current != Disks::EJECTED ? disks.mounting : 0)
 				};
 
 				state.Begin( AsciiId<'D','S','K'>::V ).Write( data ).End();
@@ -550,7 +550,13 @@ namespace Nes
 
 		NES_POKE_D(Fds,4023)
 		{
-			io.ctrl = data;
+			io.ctrl = adapter.ctrl = data;
+
+			if (!(io.ctrl & Io::CTRL0_DISK_ENABLED))
+			{
+				cpu.ClearIRQ();
+				adapter.DisableIRQ();
+			}
 		}
 
 		NES_POKE_D(Fds,4026)
@@ -738,7 +744,7 @@ namespace Nes
 							<< (i % 2 ? " Side B: " : " Side A: ")
 							<< (disksize / SIZE_1K)
 							<< "k in "
-							<< data.files.size()
+							<< static_cast<dword>(data.files.size())
 							<< " files";
 
 						if (const uint raw = data.raw.size())
@@ -750,7 +756,7 @@ namespace Nes
 						{
 							log << "Fds: file: \"" << it->name
 								<< "\", id: "      << it->id
-								<< ", size: "      << it->data.size()
+								<< ", size: "      << static_cast<dword>(it->data.size())
 								<< ", index: "     << it->index
 								<< ", address: "   << Log::Hex( 16, it->address )
 								<< ", type: "
@@ -783,21 +789,25 @@ namespace Nes
 		#pragma optimize("", on)
 		#endif
 
-		void Fds::Unit::Timer::Advance(uint& timer)
+		bool Fds::Unit::Timer::Clock()
 		{
-			timer |= STATUS_PENDING_IRQ;
+			bool retval = false;
 
-			if (ctrl & CTRL_REPEAT)
-				count = latch;
-			else
-				ctrl &= ~uint(CTRL_ENABLED);
-			
-			latch = 0; // Fixes Kaettekita Mario Bros - FHorse/dragon2snow
-		}
+			if (ctrl & CTRL_ENABLED)
+			{
+				if (count == 0)
+				{
+					retval = true;
+					count = latch;
 
-		NST_SINGLE_CALL bool Fds::Unit::Timer::Clock()
-		{
-			return !(ctrl & CTRL_ENABLED) || !count || --count;
+					if (!(ctrl & CTRL_REPEAT))
+						ctrl &= ~uint(CTRL_ENABLED);
+				}
+				else
+					count--;
+			}
+
+			return retval;
 		}
 
 		#ifdef NST_MSVC_OPTIMIZE
@@ -1202,11 +1212,15 @@ namespace Nes
 
 		ibool Fds::Unit::Clock()
 		{
-			return
-			(
-				(timer.Clock() ? 0 : (timer.Advance(status), 1)) |
-				(drive.Clock() ? 0 : drive.Advance(status))
-			);
+			bool retval = false;
+
+			if (timer.Clock())
+			{
+				status |= STATUS_PENDING_IRQ;
+				retval = true;
+			}
+
+			return (retval | (drive.Clock() ? 0 : drive.Advance(status)));
 		}
 
 		#ifdef NST_MSVC_OPTIMIZE
@@ -1215,6 +1229,12 @@ namespace Nes
 
 		Fds::Adapter::Adapter(Cpu& c,const Disks::Sides& s)
 		: Timer::M2<Unit>(c,s) {}
+
+		void Fds::Adapter::DisableIRQ()
+		{
+			unit.status &= ~uint(Unit::STATUS_PENDING_IRQ);
+			unit.timer.ctrl &= ~uint(Unit::Timer::CTRL_ENABLED);
+		}
 
 		void Fds::Adapter::Reset(Cpu& cpu,byte* const io,bool protect)
 		{
@@ -1235,12 +1255,12 @@ namespace Nes
 			{
 				const byte data[7] =
 				{
-					unit.timer.ctrl,
-					unit.status,
-					unit.timer.latch & 0xFFU,
-					unit.timer.latch >> 8,
-					unit.timer.count & 0xFFU,
-					unit.timer.count >> 8,
+					static_cast<byte>(unit.timer.ctrl),
+					static_cast<byte>(unit.status),
+					static_cast<byte>(unit.timer.latch & 0xFFU),
+					static_cast<byte>(unit.timer.latch >> 8),
+					static_cast<byte>(unit.timer.count & 0xFFU),
+					static_cast<byte>(unit.timer.count >> 8),
 					0
 				};
 
@@ -1254,20 +1274,20 @@ namespace Nes
 				{
 					unit.drive.ctrl,
 					unit.drive.status,
-					unit.drive.in & 0xFFU,
+					static_cast<byte>(unit.drive.in & 0xFFU),
 					unit.drive.out,
-					unit.drive.count ? headPos & 0xFF             : 0,
-					unit.drive.count ? headPos >> 8               : 0,
-					unit.drive.count ? unit.drive.dataPos & 0xFFU : 0,
-					unit.drive.count ? unit.drive.dataPos >> 8    : 0,
-					unit.drive.count ? unit.drive.gap & 0xFFU     : 0,
-					unit.drive.count ? unit.drive.gap >> 8        : 0,
-					unit.drive.count ? unit.drive.length & 0xFFU  : 0,
-					unit.drive.count ? unit.drive.length >> 8     : 0,
-					unit.drive.count >> 0 & 0xFF,
-					unit.drive.count >> 8 & 0xFF,
-					unit.drive.count >> 16,
-					unit.drive.in >> 8
+					static_cast<byte>(unit.drive.count ? headPos & 0xFF             : 0),
+					static_cast<byte>(unit.drive.count ? headPos >> 8               : 0),
+					static_cast<byte>(unit.drive.count ? unit.drive.dataPos & 0xFFU : 0),
+					static_cast<byte>(unit.drive.count ? unit.drive.dataPos >> 8    : 0),
+					static_cast<byte>(unit.drive.count ? unit.drive.gap & 0xFFU     : 0),
+					static_cast<byte>(unit.drive.count ? unit.drive.gap >> 8        : 0),
+					static_cast<byte>(unit.drive.count ? unit.drive.length & 0xFFU  : 0),
+					static_cast<byte>(unit.drive.count ? unit.drive.length >> 8     : 0),
+					static_cast<byte>(unit.drive.count >> 0 & 0xFF),
+					static_cast<byte>(unit.drive.count >> 8 & 0xFF),
+					static_cast<byte>(unit.drive.count >> 16),
+					static_cast<byte>(unit.drive.in >> 8)
 				};
 
 				state.Begin( AsciiId<'D','R','V'>::V ).Write( data ).End();
@@ -1379,12 +1399,17 @@ namespace Nes
 		{
 			Update();
 
+			if (!(ctrl & Io::CTRL0_DISK_ENABLED))
+				return;
+
 			unit.timer.ctrl = data;
 			unit.timer.count = unit.timer.latch;
 			unit.status &= Unit::STATUS_TRANSFERED;
 
-			if (!unit.status)
-				ClearIRQ();
+			if (data & Unit::Timer::CTRL_ENABLED)
+				return;
+
+			ClearIRQ();
 		}
 
 		NES_POKE_D(Fds::Adapter,4024)
@@ -1670,11 +1695,11 @@ namespace Nes
 				{
 					byte data[6] =
 					{
-						((status & STATUS_OUTPUT_ENABLED) ? 0U : uint(REG3_OUTPUT_DISABLE)) |
-						((status & STATUS_ENVELOPES_ENABLED) ? 0U : uint(REG3_ENVELOPE_DISABLE)),
-						wave.writing ? REG9_WRITE_MODE : 0,
-						wave.length & 0xFFU,
-						wave.length >> 8,
+						static_cast<byte>(((status & STATUS_OUTPUT_ENABLED) ? 0U : uint(REG3_OUTPUT_DISABLE)) |
+							((status & STATUS_ENVELOPES_ENABLED) ? 0U : uint(REG3_ENVELOPE_DISABLE))),
+						static_cast<byte>(wave.writing ? REG9_WRITE_MODE : 0),
+						static_cast<byte>(wave.length & 0xFFU),
+						static_cast<byte>(wave.length >> 8),
 						envelopes.length,
 						envelopes.counter
 					};
@@ -1704,8 +1729,8 @@ namespace Nes
 				{
 					const byte data[4] =
 					{
-						modulator.length & 0xFF,
-						modulator.length >> 8 | (modulator.writing ? REG7_MOD_WRITE_MODE : 0),
+						static_cast<byte>(modulator.length & 0xFF),
+						static_cast<byte>(modulator.length >> 8 | (modulator.writing ? REG7_MOD_WRITE_MODE : 0)),
 						modulator.sweep,
 						modulator.pos
 					};

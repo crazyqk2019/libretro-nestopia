@@ -238,7 +238,7 @@ namespace Nes
 
 			stream = NULL;
 
-			buffer.Reset( settings.bits );
+			buffer.Reset();
 
 			if (on)
 			{
@@ -297,27 +297,10 @@ namespace Nes
 			if (!rate)
 				return RESULT_ERR_INVALID_PARAM;
 
-			if (rate < 11025 || rate > 96000)
-				return RESULT_ERR_UNSUPPORTED;
+			/*if (rate < 44100 || rate > 96000)
+				return RESULT_ERR_UNSUPPORTED;*/
 
 			settings.rate = rate;
-			UpdateSettings();
-
-			return RESULT_OK;
-		}
-
-		Result Apu::SetSampleBits(const uint bits)
-		{
-			if (settings.bits == bits)
-				return RESULT_NOP;
-
-			if (!bits)
-				return RESULT_ERR_INVALID_PARAM;
-
-			if (bits != 8 && bits != 16)
-				return RESULT_ERR_UNSUPPORTED;
-
-			settings.bits = bits;
 			UpdateSettings();
 
 			return RESULT_OK;
@@ -359,6 +342,11 @@ namespace Nes
 			}
 
 			return 0;
+		}
+
+		uint Apu::GetCtrl()
+		{
+			return ctrl;
 		}
 
 		Result Apu::SetSpeed(const uint speed)
@@ -416,7 +404,7 @@ namespace Nes
 			cycles.Update( settings.rate, settings.speed, cpu );
 			synchronizer.Reset( settings.speed, settings.rate, cpu );
 			dcBlocker.Reset();
-			buffer.Reset( settings.bits );
+			buffer.Reset();
 
 			Cycle rate; uint fixed;
 			CalculateOscillatorClock( rate, fixed );
@@ -482,10 +470,10 @@ namespace Nes
 
 				const byte data[4] =
 				{
-					ctrl,
-					clock & 0xFF,
-					clock >> 8,
-					cycles.frameDivider
+					static_cast<byte>(ctrl),
+					static_cast<byte>(clock & 0xFF),
+					static_cast<byte>(clock >> 8),
+					static_cast<byte>(cycles.frameDivider)
 				};
 
 				state.Begin( AsciiId<'F','R','M'>::V ).Write( data ).End();
@@ -506,9 +494,9 @@ namespace Nes
 
 				const byte data[3] =
 				{
-					clock & 0xFF,
-					clock >> 8,
-					cycles.frameIrqRepeat % 3
+					static_cast<byte>(clock & 0xFF),
+					static_cast<byte>(clock >> 8),
+					static_cast<byte>(cycles.frameIrqRepeat % 3)
 				};
 
 				state.Begin( AsciiId<'I','R','Q'>::V ).Write( data ).End();
@@ -544,10 +532,10 @@ namespace Nes
 			{
 				const byte data[4] =
 				{
-					cycles.rateCounter & 0xFFU,
-					cycles.rateCounter >> 8,
-					cycles.rateCounter >> 16,
-					cycles.rateCounter >> 24,
+					static_cast<byte>(cycles.rateCounter & 0xFFU),
+					static_cast<byte>(cycles.rateCounter >> 8),
+					static_cast<byte>(cycles.rateCounter >> 16),
+					static_cast<byte>(cycles.rateCounter >> 24),
 				};
 
 				state.Begin( AsciiId<'S','0','0'>::V ).Write( data ).End();
@@ -858,20 +846,10 @@ namespace Nes
 				{
 					streamed = stream->length[0] + stream->length[1];
 
-					if (settings.bits == 16)
-					{
-						if (!settings.stereo)
-							FlushSound<iword,false>();
-						else
-							FlushSound<iword,true>();
-					}
+					if (!settings.stereo)
+						FlushSound<iword,false>();
 					else
-					{
-						if (!settings.stereo)
-							FlushSound<byte,false>();
-						else
-							FlushSound<byte,true>();
-					}
+						FlushSound<iword,true>();
 
 					Sound::Output::unlockCallback( *stream );
 				}
@@ -916,7 +894,7 @@ namespace Nes
 		#endif
 
 		Apu::Settings::Settings()
-		: rate(44100), bits(16), speed(0), muted(false), transpose(false), stereo(false), audible(true)
+		: rate(44100), speed(0), muted(false), transpose(false), stereo(false), audible(true)
 		{
 			for (uint i=0; i < MAX_CHANNELS; ++i)
 				volumes[i] = Channel::DEFAULT_VOLUME;
@@ -1087,7 +1065,7 @@ namespace Nes
 			const byte data[3] =
 			{
 				count,
-				regs[0] | (reset ? 0x80U : 0x00U),
+				static_cast<byte>(regs[0] | (reset ? 0x80U : 0x00U)),
 				regs[1]
 			};
 
@@ -1180,18 +1158,18 @@ namespace Nes
 			{
 				const byte data[12] =
 				{
-					acc & 0xFFU,
-					acc >> 8,
-					acc >> 16,
-					acc >> 24,
-					prev & 0xFFU,
-					prev >> 8,
-					prev >> 16,
-					prev >> 24,
-					next & 0xFFU,
-					next >> 8,
-					next >> 16,
-					next >> 24,
+					static_cast<byte>(acc & 0xFFU),
+					static_cast<byte>(acc >> 8),
+					static_cast<byte>(acc >> 16),
+					static_cast<byte>(acc >> 24),
+					static_cast<byte>(prev & 0xFFU),
+					static_cast<byte>(prev >> 8),
+					static_cast<byte>(prev >> 16),
+					static_cast<byte>(prev >> 24),
+					static_cast<byte>(next & 0xFFU),
+					static_cast<byte>(next >> 8),
+					static_cast<byte>(next >> 16),
+					static_cast<byte>(next >> 24),
 				};
 
 				state.Begin( AsciiId<'S','0','0'>::V ).Write( data ).End();
@@ -1402,19 +1380,19 @@ namespace Nes
 			{
 				const byte data[13] = 
 				{
-					step,
-					timer & 0xFFU,
-					timer >> 8,
-					timer >> 16,
-					timer >> 24,
-					frequency & 0xFFU,
-					frequency >> 8,
-					frequency >> 16,
-					frequency >> 24,
-					amp & 0xFFU,
-					amp >> 8,
-					amp >> 16,
-					amp >> 24,
+					static_cast<byte>(step),
+					static_cast<byte>(timer & 0xFFU),
+					static_cast<byte>(timer >> 8),
+					static_cast<byte>(timer >> 16),
+					static_cast<byte>(timer >> 24),
+					static_cast<byte>(frequency & 0xFFU),
+					static_cast<byte>(frequency >> 8),
+					static_cast<byte>(frequency >> 16),
+					static_cast<byte>(frequency >> 24),
+					static_cast<byte>(amp & 0xFFU),
+					static_cast<byte>(amp >> 8),
+					static_cast<byte>(amp >> 16),
+					static_cast<byte>(amp >> 24),
 				};
 
 				state.Begin( AsciiId<'S','0','0'>::V ).Write( data ).End();
@@ -1625,7 +1603,7 @@ namespace Nes
 
 					do
 					{
-						sum += NST_MIN(-timer,frequency) >> form[step = (step + 1) & 0x7];
+						sum += NST_MIN(-timer,idword(frequency)) >> form[step = (step + 1) & 0x7];
 						timer += idword(frequency);
 					}
 					while (timer < 0);
@@ -1670,7 +1648,7 @@ namespace Nes
 			step = 0x7;
 			status = STATUS_COUNTING;
 			waveLength = 0;
-			linearCtrl = 0;
+			//linearCtrl = 0;
 			linearCounter = 0;
 
 			lengthCounter.Reset();
@@ -1704,10 +1682,10 @@ namespace Nes
 			{
 				const byte data[4] =
 				{
-					waveLength & 0xFFU,
-					waveLength >> 8,
-					linearCounter | (uint(status) << 7),
-					linearCtrl
+					static_cast<byte>(waveLength & 0xFFU),
+					static_cast<byte>(waveLength >> 8),
+					static_cast<byte>(linearCounter | (uint(status) << 7)),
+					static_cast<byte>(linearCtrl)
 				};
 
 				state.Begin( AsciiId<'R','E','G'>::V ).Write( data ).End();
@@ -1718,15 +1696,15 @@ namespace Nes
 			{
 				const byte data[9] =
 				{
-					step,
-					timer & 0xFFU,
-					timer >> 8,
-					timer >> 16,
-					timer >> 24,
-					amp & 0xFFU,
-					amp >> 8,
-					amp >> 16,
-					amp >> 24,
+					static_cast<byte>(step),
+					static_cast<byte>(timer & 0xFFU),
+					static_cast<byte>(timer >> 8),
+					static_cast<byte>(timer >> 16),
+					static_cast<byte>(timer >> 24),
+					static_cast<byte>(amp & 0xFFU),
+					static_cast<byte>(amp >> 8),
+					static_cast<byte>(amp >> 16),
+					static_cast<byte>(amp >> 24),
 				};
 
 				state.Begin( AsciiId<'S','0','0'>::V ).Write( data ).End();
@@ -1861,7 +1839,7 @@ namespace Nes
 
 					do
 					{
-						sum += NST_MIN(-timer,frequency) * pyramid[step = (step + 1) & 0x1F];
+						sum += NST_MIN(-timer,idword(frequency)) * pyramid[step = (step + 1) & 0x1F];
 						timer += idword(frequency);
 					}
 					while (timer < 0);
@@ -1870,7 +1848,6 @@ namespace Nes
 					amp = (sum * outputVolume + rate/2) / rate * 3;
 				}
 			}
-			// Disabling these blocks fixes scratchy audio in many games
 			/*else if (amp < Channel::OUTPUT_DECAY)
 			{
 				return 0;
@@ -1948,12 +1925,12 @@ namespace Nes
 			{
 				const byte data[6] =
 				{
-					bits & 0xFFU,
-					bits >> 8,
-					timer & 0xFFU,
-					timer >> 8,
-					timer >> 16,
-					timer >> 24
+					static_cast<byte>(bits & 0xFFU),
+					static_cast<byte>(bits >> 8),
+					static_cast<byte>(timer & 0xFFU),
+					static_cast<byte>(timer >> 8),
+					static_cast<byte>(timer >> 16),
+					static_cast<byte>(timer >> 24)
 				};
 
 				state.Begin( AsciiId<'S','0','0'>::V ).Write( data ).End();
@@ -2071,7 +2048,7 @@ namespace Nes
 						bits = (bits << 1) | ((bits >> 14 ^ bits >> shifter) & 0x1);
 
 						if (!(bits & 0x4000))
-							sum += NST_MIN(-timer,frequency);
+							sum += NST_MIN(-timer,idword(frequency));
 
 						timer += idword(frequency);
 					}
@@ -2171,21 +2148,21 @@ namespace Nes
 			{
 				const byte data[12] =
 				{
-					dmcClock & 0xFF,
-					dmcClock >> 8,
-					(
+					static_cast<byte>(dmcClock & 0xFF),
+					static_cast<byte>(dmcClock >> 8),
+					static_cast<byte>((
 						( ( regs.ctrl & REG0_FREQUENCY  )              ) |
 						( ( regs.ctrl & REG0_LOOP       ) ? 0x10U : 0U ) |
 						( ( regs.ctrl & REG0_IRQ_ENABLE ) ? 0x20U : 0U ) |
 						( ( dma.lengthCounter           ) ? 0x40U : 0U )
-					),
-					(regs.address - 0xC000U) >> 6,
-					(regs.lengthCounter - 1U) >> 4,
-					(dma.address >> 0 & 0xFFU),
-					(dma.address >> 8 & 0x7FU) | (dma.buffered ? 0x80 : 0x00),
-					dma.lengthCounter ? (dma.lengthCounter - 1U) >> 4 : 0,
-					dma.buffer,
-					7 - out.shifter,
+					)),
+					static_cast<byte>((regs.address - 0xC000U) >> 6),
+					static_cast<byte>((regs.lengthCounter - 1U) >> 4),
+					static_cast<byte>((dma.address >> 0 & 0xFFU)),
+					static_cast<byte>((dma.address >> 8 & 0x7FU) | (dma.buffered ? 0x80 : 0x00)),
+					static_cast<byte>(dma.lengthCounter ? (dma.lengthCounter - 1U) >> 4 : 0),
+					static_cast<byte>(dma.buffer),
+					static_cast<byte>(7 - out.shifter),
 					out.buffer,
 					out.dac,
 				};
@@ -2196,10 +2173,10 @@ namespace Nes
 			{
 				const byte data[4] =
 				{
-					linSample & 0xFFU,
-					linSample >> 8,
-					dma.lengthCounter & 0xFFU,
-					dma.lengthCounter >> 8,
+					static_cast<byte>(linSample & 0xFFU),
+					static_cast<byte>(linSample >> 8),
+					static_cast<byte>(dma.lengthCounter & 0xFFU),
+					static_cast<byte>(dma.lengthCounter >> 8),
 				};
 
 				state.Begin( AsciiId<'S','0','0'>::V ).Write( data ).End();
@@ -2307,31 +2284,53 @@ namespace Nes
 		{
 			NST_VERIFY( !dma.buffered && (!readAddress || !cpu.IsWriteCycle(clock)) );
 
-			if (!readAddress)
+			/* DMC DMA adds:
+			 * case 1: 4 cycles normally
+			 * case 2: 3 if it lands on a CPU write
+			 * case 3: 2 if it lands on the $4014 write or during OAM DMA
+			 * case 4: 1 if on the next-to-next-to-last DMA cycle
+			 * case 5: 3 if on the last DMA cycle
+			 * https://forums.nesdev.org/viewtopic.php?f=3&t=6100
+			 * https://www.nesdev.org/wiki/DMA
+			*/
+			uint cyclesToSteal = cpu.IsWriteCycle(clock) ? 3 : 4;
+
+			if (cpu.GetOamDMA())
 			{
-				cpu.StealCycles( cpu.GetClock(cpu.IsWriteCycle(clock) ? 2 : 3) );
+				if (cpu.GetOamDMACycle() == 255)
+				{
+					cyclesToSteal = 3;
+				}
+				else if (cpu.GetOamDMACycle() == 254)
+				{
+					cyclesToSteal = 1;
+				}
+				else
+				{
+					cyclesToSteal = 2;
+				}
 			}
-			else if (cpu.GetCycles() != clock)
-			{
-				cpu.StealCycles( cpu.GetClock(3) );
-			}
-			else
+
+			if (readAddress && cpu.GetCycles() == clock)
 			{
 				NST_DEBUG_MSG("DMA/Read conflict!");
 
-				cpu.StealCycles( cpu.GetClock(1) );
+				/* According to dmc_dma_during_read4/dma_2007_read, DMC DMA during read causes
+				 * 2-3 extra $2007 reads before the real read. The nesdev wiki states that this
+				 * also happens when polling $2002 for vblank.
+				*/
+				if ((readAddress & 0xF000) != 0x4000)
+				{
+					cpu.Peek( readAddress );
+					cpu.Peek( readAddress );
+				}
 
-				// This is disabled until a real solution is discovered
-				//if ((readAddress & 0xF000) != 0x4000)
-				//	cpu.Peek( readAddress );
-
-				cpu.StealCycles( cpu.GetClock(1) );
 				cpu.Peek( readAddress );
-				cpu.StealCycles( cpu.GetClock(1) );
 			}
 
+			cpu.StealCycles( cpu.GetClock() * cyclesToSteal);
+
 			dma.buffer = cpu.Peek( dma.address );
-			cpu.StealCycles( cpu.GetClock() );
 			dma.address = 0x8000 | ((dma.address + 1U) & 0x7FFF);
 			dma.buffered = true;
 
@@ -2464,7 +2463,7 @@ namespace Nes
 
 			dcBlocker.Reset();
 
-			buffer.Reset( settings.bits, false );
+			buffer.Reset( false );
 		}
 
 		#ifdef NST_MSVC_OPTIMIZE

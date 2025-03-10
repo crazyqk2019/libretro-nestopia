@@ -22,20 +22,12 @@
 //
 ////////////////////////////////////////////////////////////////////////////////////////
 
-#ifdef __LIBRETRO__
-#define NST_NO_SCALEX 1
-#define NST_NO_HQ2X 1
-#define NST_NO_2XSAI 1
-#define NST_NO_XBR 1
-#endif
-
 #include <cstring>
 #include <cmath>
 #include <new>
 #include "NstCore.hpp"
 #include "NstAssert.hpp"
 #include "NstFpuPrecision.hpp"
-#include "api/NstApiVideo.hpp"
 #include "NstVideoRenderer.hpp"
 #include "NstVideoFilterNone.hpp"
 
@@ -478,6 +470,7 @@ namespace Nes
 			void Renderer::Palette::Update(int brightness,int saturation,int contrast,int hue)
 			{
 				FpuPrecision precision;
+				(void)precision;
 				(*this.*(type == PALETTE_YUV ? &Palette::Generate : &Palette::Build))( brightness, saturation, contrast, hue );
 			}
 
@@ -830,7 +823,7 @@ namespace Nes
 					if (Output::lockCallback( output ))
 					{
 						NST_VERIFY( std::labs(output.pitch) >= dword(state.width) << (filter->format.bpp / 16) );
-						
+
 						filter->bgColor = bgColor;
 
 						if (std::labs(output.pitch) >= dword(state.width) << (filter->format.bpp / 16))

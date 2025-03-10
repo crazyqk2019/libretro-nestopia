@@ -241,13 +241,13 @@ namespace Nes
 				{
 					const byte data[4] =
 					{
-						(holding   ? 0x1U : 0x0U) |
-						(hold      ? 0x2U : 0x1U) |
-						(alternate ? 0x4U : 0x0U) |
-						(attack    ? 0x8U : 0x0U),
-						count,
-						length & 0xFF,
-						length >> 8
+						static_cast<byte>((holding   ? 0x1U : 0x0U) |
+							(hold      ? 0x2U : 0x1U) |
+							(alternate ? 0x4U : 0x0U) |
+							(attack    ? 0x8U : 0x0U)),
+						static_cast<byte>(count),
+						static_cast<byte>(length & 0xFF),
+						static_cast<byte>(length >> 8)
 					};
 
 					state.Begin( chunk ).Begin( AsciiId<'R','E','G'>::V ).Write( data ).End().End();
@@ -262,9 +262,9 @@ namespace Nes
 				{
 					const byte data[3] =
 					{
-						(~status & 0x1) | (ctrl << 1),
-						length & 0xFF,
-						(length >> 8) | ((status & 0x8) << 1),
+						static_cast<byte>((~status & 0x1) | (ctrl << 1)),
+						static_cast<byte>(length & 0xFF),
+						static_cast<byte>((length >> 8) | ((status & 0x8) << 1)),
 					};
 
 					state.Begin( chunk ).Begin( AsciiId<'R','E','G'>::V ).Write( data ).End().End();
@@ -322,7 +322,7 @@ namespace Nes
 							ctrl = data[0] >> 1 & 0x1F;
 							length = data[1] | (data[2] << 8 & 0xF00);
 							volume = levels[(ctrl & 0xF) ? (ctrl & 0xF) * 2 + 1 : 0];
-							dc = (status & 0x1) ? ~0UL : 0UL;
+							dc = (status & 0x1) ? ~dword(0) : dword(0);
 
 							UpdateSettings( fixed );
 						}

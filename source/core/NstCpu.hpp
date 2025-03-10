@@ -260,8 +260,8 @@ namespace Nes
 			NST_SINGLE_CALL void Lxa (uint);
 			NST_SINGLE_CALL void Sbx (uint);
 			NST_SINGLE_CALL uint Shs (uint);
-			NST_SINGLE_CALL uint Shx (uint);
-			NST_SINGLE_CALL uint Shy (uint);
+			NST_SINGLE_CALL void Shx (uint);
+			NST_SINGLE_CALL void Shy (uint);
 
 			NST_NO_INLINE void Anc (uint);
 			NST_NO_INLINE uint Dcp (uint);
@@ -490,6 +490,9 @@ namespace Nes
 			bool cpuOverclocking;
 			uint extraCycles;
 
+			bool dmaOam;
+			uint dmaOamCycle;
+
 			static dword logged;
 			static void (Cpu::*const opcodes[0x100])();
 			static const byte writeClocks[0x100];
@@ -511,6 +514,30 @@ namespace Nes
 			{
 				apu.ClockDMA( readAddress );
 				return cycles.count;
+			}
+
+			void SetOamDMA(bool dma)
+			{
+				if (dma && !dmaOam && IsOddCycle())
+				{
+					StealCycles( GetClock() );
+				}
+				dmaOam = dma;
+			}
+
+			bool GetOamDMA()
+			{
+				return dmaOam;
+			}
+
+			uint GetOamDMACycle()
+			{
+				return dmaOamCycle;
+			}
+
+			void SetOamDMACycle(uint count)
+			{
+				dmaOamCycle = count;
 			}
 
 			void DoIRQ(IrqLine line=IRQ_EXT)

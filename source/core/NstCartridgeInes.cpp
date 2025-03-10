@@ -147,7 +147,7 @@ namespace Nes
 					Log::Flush( "Ines: PRG-ROM was patched" NST_LINEBREAK );
 
 				if (Load( chr, 16 + prg.Size() ))
-					Log::Flush( "Ines: PRG-ROM was patched" NST_LINEBREAK );
+					Log::Flush( "Ines: CHR-ROM was patched" NST_LINEBREAK );
 			}
 
 		private:
@@ -184,8 +184,15 @@ namespace Nes
 
 				Result result = ReadHeader( setup, header, 16 );
 
-				if (NES_FAILED(result))
-					throw RESULT_ERR_CORRUPT_FILE;
+				if (NES_FAILED(result)) {
+					// This might be a VC/NES Remix game, seek to end of container and re-read header
+					stream.Seek(32);
+					stream.Read( header );
+					result = ReadHeader( setup, header, 16, false );
+
+					if (NES_FAILED(result))
+						throw RESULT_ERR_CORRUPT_FILE;
+				}
 
 				Log log;
 
@@ -246,6 +253,16 @@ namespace Nes
 							<< (setup.chrNvRam % SIZE_1K ? setup.chrNvRam : setup.chrNvRam / SIZE_1K)
 							<< (setup.chrNvRam % SIZE_1K ? " bytes" : "k")
 							<< " non-volatile CHR-RAM set" NST_LINEBREAK;
+					}
+
+					// Special case for Mapper 30 - Mapper is flashable, no bus conflicts
+					// when the battery flag is set. This can also be used to signify no bus
+					// conflicts even in cases where there is no flashable PRG.
+					if (setup.mapper == 30 && header[6] & 0x2U)
+					{
+						profileEx.battery = true;
+						log << title
+							<< "battery flag set (no bus conflicts)" NST_LINEBREAK;
 					}
 				}
 				else
@@ -486,6 +503,7 @@ namespace Nes
 									profile.system.type = Profile::System::NES_NTSC;
 									break;
 								}
+								// fallthrough
 
 							case Header::REGION_PAL:
 
@@ -504,6 +522,150 @@ namespace Nes
 								break;
 						}
 						break;
+				}
+
+				switch (setup.inputType)
+				{
+					// Currently unsupported by the NES 2.0 spec or for other reasons:
+					// POWERGLOVE, MOUSE, SUBORKEYBOARD, HORITRACK, CRAZYCLIMBER
+					case 0x01: // Standard Controllers
+					{
+						profile.game.controllers[0] = Api::Input::PAD1;
+						profile.game.controllers[1] = Api::Input::PAD2;
+						break;
+					}
+					case 0x02: // NES Four Score/Satellite
+					{
+						profile.game.controllers[0] = Api::Input::PAD1;
+						profile.game.controllers[1] = Api::Input::PAD2;
+						profile.game.controllers[2] = Api::Input::PAD3;
+						profile.game.controllers[3] = Api::Input::PAD4;
+						break;
+					}
+					case 0x08: // Zapper
+					{
+						profile.game.controllers[1] = Api::Input::ZAPPER;
+						break;
+					}
+					case 0x0A: // Bandai Hyper Shot
+					{
+						profile.game.adapter = Api::Input::ADAPTER_FAMICOM;
+						profile.game.controllers[4] = Api::Input::BANDAIHYPERSHOT;
+						break;
+					}
+					case 0x0B: case 0x0C: // Power Pad (Side A, Side B)
+					{
+						profile.game.controllers[1] = Api::Input::POWERPAD;
+						break;
+					}
+					case 0x0D: case 0x0E: // Family Trainer (Side A, Side B)
+					{
+						profile.game.adapter = Api::Input::ADAPTER_FAMICOM;
+						profile.game.controllers[4] = Api::Input::FAMILYTRAINER;
+						break;
+					}
+					case 0x0F: // Arkanoid Paddle (NES)
+					{
+						profile.game.controllers[1] = Api::Input::PADDLE;
+						break;
+					}
+					case 0x10: // Arkanoid Paddle (Famicom)
+					{
+						profile.game.adapter = Api::Input::ADAPTER_FAMICOM;
+						profile.game.controllers[4] = Api::Input::PADDLE;
+						break;
+					}
+					case 0x12: // Konami Hypershot
+					{
+						profile.game.adapter = Api::Input::ADAPTER_FAMICOM;
+						profile.game.controllers[0] = Api::Input::UNCONNECTED;
+						profile.game.controllers[1] = Api::Input::UNCONNECTED;
+						profile.game.controllers[4] = Api::Input::KONAMIHYPERSHOT;
+						break;
+					}
+					case 0x13: // Coconuts Pachinko Controller
+					{
+						profile.game.adapter = Api::Input::ADAPTER_FAMICOM;
+						profile.game.controllers[4] = Api::Input::PACHINKO;
+						break;
+					}
+					case 0x14: // Exciting Boxing
+					{
+						profile.game.adapter = Api::Input::ADAPTER_FAMICOM;
+						profile.game.controllers[4] = Api::Input::EXCITINGBOXING;
+						break;
+					}
+					case 0x15: // Jissen Mahjong Controller
+					{
+						profile.game.adapter = Api::Input::ADAPTER_FAMICOM;
+						profile.game.controllers[0] = Api::Input::UNCONNECTED;
+						profile.game.controllers[1] = Api::Input::UNCONNECTED;
+						profile.game.controllers[4] = Api::Input::MAHJONG;
+						break;
+					}
+					case 0x16: // Party Tap
+					{
+						profile.game.adapter = Api::Input::ADAPTER_FAMICOM;
+						profile.game.controllers[1] = Api::Input::UNCONNECTED;
+						profile.game.controllers[4] = Api::Input::PARTYTAP;
+						break;
+					}
+					case 0x17: // Oeka Kids Tablet
+					{
+						profile.game.adapter = Api::Input::ADAPTER_FAMICOM;
+						profile.game.controllers[0] = Api::Input::UNCONNECTED;
+						profile.game.controllers[1] = Api::Input::UNCONNECTED;
+						profile.game.controllers[4] = Api::Input::OEKAKIDSTABLET;
+						break;
+					}
+					case 0x18: // Sunsoft Barcode Battler
+					{
+						profile.game.adapter = Api::Input::ADAPTER_FAMICOM;
+						profile.game.controllers[4] = Api::Input::BARCODEWORLD;
+						break;
+					}
+					case 0x1A: // Pokkun Moguraa (Whack-a-Mole Mat and Mallet)
+					{
+						profile.game.adapter = Api::Input::ADAPTER_FAMICOM;
+						profile.game.controllers[1] = Api::Input::UNCONNECTED;
+						profile.game.controllers[4] = Api::Input::POKKUNMOGURAA;
+						break;
+					}
+					case 0x1B: // Top Rider
+					{
+						profile.game.adapter = Api::Input::ADAPTER_FAMICOM;
+						profile.game.controllers[0] = Api::Input::UNCONNECTED;
+						profile.game.controllers[1] = Api::Input::UNCONNECTED;
+						profile.game.controllers[4] = Api::Input::TOPRIDER;
+						break;
+					}
+					case 0x1E: // Doremikko Keyboard
+					{
+						profile.game.adapter = Api::Input::ADAPTER_FAMICOM;
+						profile.game.controllers[4] = Api::Input::DOREMIKKOKEYBOARD;
+						break;
+					}
+					case 0x1F: // R.O.B. Gyro Set
+					{
+						profile.game.controllers[1] = Api::Input::ROB;
+						break;
+					}
+					case 0x21: // Turbo File
+					{
+						profile.game.adapter = Api::Input::ADAPTER_FAMICOM;
+						profile.game.controllers[4] = Api::Input::TURBOFILE;
+						break;
+					}
+					case 0x23: // Family BASIC Keyboard
+					{
+						profile.game.adapter = Api::Input::ADAPTER_FAMICOM;
+						profile.game.controllers[4] = Api::Input::FAMILYKEYBOARD;
+						break;
+					}
+					default:
+					{
+						break;
+					}
 				}
 
 				return trainerSetup;
@@ -615,7 +777,7 @@ namespace Nes
 			loader.Load();
 		}
 
-		Result Cartridge::Ines::ReadHeader(Header& setup,const byte* const file,const ulong length)
+		Result Cartridge::Ines::ReadHeader(Header& setup,const byte* const file,const ulong length,const bool lbyte)
 		{
 			if (file == NULL)
 				return RESULT_ERR_INVALID_PARAM;
@@ -626,7 +788,7 @@ namespace Nes
 				file[0] != Ascii<'N'>::V ||
 				file[1] != Ascii<'E'>::V ||
 				file[2] != Ascii<'S'>::V ||
-				file[3] != 0x1A
+				(file[3] != 0x1A && lbyte) // Last byte may be ignored for "official" ROMs
 			)
 				return RESULT_ERR_INVALID_FILE;
 
@@ -674,7 +836,7 @@ namespace Nes
 
 			if (setup.version)
 			{
-				setup.mapper |= uint(header[8]) << 8 & 0x100;
+				setup.mapper |= uint(header[8]) << 8 & 0x300;
 				setup.subMapper = header[8] >> 4;
 			}
 
@@ -745,6 +907,7 @@ namespace Nes
 				setup.prgNvRam = ((header[10]) >>   4) - 1U < 14 ? 64UL << (header[10] >>   4) : 0;
 				setup.chrRam   = ((header[11]) & 0xFU) - 1U < 14 ? 64UL << (header[11] & 0xFU) : 0;
 				setup.chrNvRam = ((header[11]) >>   4) - 1U < 14 ? 64UL << (header[11] >>   4) : 0;
+				setup.inputType = header[15];
 			}
 			else
 			{
