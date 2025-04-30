@@ -2311,57 +2311,58 @@ struct retro_core_options_v2 options_ca = {
 struct retro_core_option_v2_category option_cats_chs[] = {
    {
       "system",
-      CATEGORY_SYSTEM_LABEL_CHS,
-      CATEGORY_SYSTEM_INFO_0_CHS
+      "系统",
+      "更改系统区域和其他硬件相关设置。"
    },
    {
       "video",
-      CATEGORY_VIDEO_LABEL_CHS,
-      CATEGORY_VIDEO_INFO_0_CHS
+      "视频",
+      "更改宽高比、显示裁剪、调色板和视频滤镜设置。"
    },
    {
       "audio",
-      CATEGORY_AUDIO_LABEL_CHS,
-      CATEGORY_AUDIO_INFO_0_CHS
+      "音频",
+      "更改音频效果和声道音量。"
    },
    {
       "input",
-      CATEGORY_INPUT_LABEL_CHS,
-      CATEGORY_INPUT_INFO_0_CHS
+      "输入",
+      "更改输入设备和其他输入相关设置。"
    },
    {
       "hacks",
-      CATEGORY_HACKS_LABEL_CHS,
-      CATEGORY_HACKS_INFO_0_CHS
+      "模拟器调整",
+      "更改处理器超频和模拟精度设置，这些设置会影响低级模拟（LLE）的性能和兼容性。"
    },
    { NULL, NULL, NULL },
 };
+
 struct retro_core_option_v2_definition option_defs_chs[] = {
 
 /* System */
 
    {
       "nestopia_favored_system",
-      NESTOPIA_FAVORED_SYSTEM_LABEL_CHS,
+      "系统区域",
       NULL,
-      NESTOPIA_FAVORED_SYSTEM_INFO_0_CHS,
+      "'Auto' will use the NstDatabase.xml database file for region autodetection. If there is no database present, it will default to NTSC.",
       NULL,
       "system",
       {
-         { "auto",    OPTION_VAL_AUTO_CHS },
-         { "ntsc",    OPTION_VAL_NTSC_CHS },
-         { "pal",     OPTION_VAL_PAL_CHS },
-         { "famicom", OPTION_VAL_FAMICOM_CHS },
-         { "dendy",   OPTION_VAL_DENDY_CHS },
+         { "auto",    "自动" },
+         { "ntsc",    "NTSC" },
+         { "pal",     "PAL" },
+         { "famicom", "日版FC" },
+         { "dendy",   "Dendy" },
          { NULL, NULL },
       },
       "auto"
    },
    {
       "nestopia_fds_auto_insert",
-      NESTOPIA_FDS_AUTO_INSERT_LABEL_CHS,
+      "自动插入磁盘",
       NULL,
-      NESTOPIA_FDS_AUTO_INSERT_INFO_0_CHS,
+      "复位后自动插入第一张磁盘。",
       NULL,
       "system",
       {
@@ -2376,86 +2377,134 @@ struct retro_core_option_v2_definition option_defs_chs[] = {
 
    {
       "nestopia_blargg_ntsc_filter",
-      NESTOPIA_BLARGG_NTSC_FILTER_LABEL_CHS,
+      "Blargg NTSC滤镜",
       NULL,
-      NESTOPIA_BLARGG_NTSC_FILTER_INFO_0_CHS,
+      "启用Blargg NTSC滤镜。",
       NULL,
       "video",
       {
          { "disabled",   NULL },
-         { "composite",  OPTION_VAL_COMPOSITE_CHS },
-         { "svideo",     OPTION_VAL_SVIDEO_CHS },
-         { "rgb",        OPTION_VAL_RGB_CHS },
-         { "monochrome", OPTION_VAL_MONOCHROME_CHS },
+         { "composite",  "复合视频" },
+         { "svideo",     "S-Video" },
+         { "rgb",        "RGB SCART" },
+         { "monochrome", "黑白" },
          { NULL, NULL },
       },
       "disabled"
    },
    {
       "nestopia_palette",
-      NESTOPIA_PALETTE_LABEL_CHS,
+      "调色板",
       NULL,
-      NESTOPIA_PALETTE_INFO_0_CHS,
+      "设置使用的调色板。如果选择‘自定义’，将从RetroArch的系统目录读取名为‘custom.pal’的调色板文件。",
       NULL,
       "video",
       {
-         { "cxa2025as",            OPTION_VAL_CXA2025AS_CHS },
-         { "consumer",             OPTION_VAL_CONSUMER_CHS },
-         { "canonical",            OPTION_VAL_CANONICAL_CHS },
-         { "alternative",          OPTION_VAL_ALTERNATIVE_CHS },
-         { "rgb",                  OPTION_VAL_RGB_O3_CHS },
-         { "pal",                  OPTION_VAL_PAL_CHS },
-         { "composite-direct-fbx", OPTION_VAL_COMPOSITE_DIRECT_FBX_CHS },
-         { "pvm-style-d93-fbx",    OPTION_VAL_PVM_STYLE_D93_FBX_CHS },
-         { "ntsc-hardware-fbx",    OPTION_VAL_NTSC_HARDWARE_FBX_CHS },
-         { "nes-classic-fbx-fs",   OPTION_VAL_NES_CLASSIC_FBX_FS_CHS },
-         { "raw",                  OPTION_VAL_RAW_CHS },
-         { "custom",               OPTION_VAL_CUSTOM_CHS },
+         { "cxa2025as",            "CXA2025AS (US)" },
+         { "cxa2025as_jp",         "CXA2025AS (JP)" },
+         { "royaltea",             "Royaltea" },
+         { "consumer",             "Consumer" },
+         { "canonical",            "Canonical" },
+         { "alternative",          "Alternative" },
+         { "rgb",                  "RGB" },
+         { "pal",                  "PAL" },
+         { "composite-direct-fbx", "Composite Direct FBX" },
+         { "pvm-style-d93-fbx",    "PVM-style D93 FBX" },
+         { "ntsc-hardware-fbx",    "NTSC hardware FBX" },
+         { "nes-classic-fbx-fs",   "NES Classic FBx (fixed)" },
+         { "restored-wii-vc",      "Restored Wii VC" },
+         { "wii-vc",               "Wii Virtual Console" },
+         { "raw",                  "原始格式" },
+         { "custom",               "自定义" },
          { NULL, NULL },
       },
-      "cxa2025as" /* TODO/FIXME - is this correct ? */
+      "cxa2025as"
    },
    {
-      "nestopia_overscan_v",
-      NESTOPIA_OVERSCAN_V_LABEL_CHS,
+      "nestopia_overscan_v_top",
+      "屏蔽过扫描（垂直方向顶部）",
       NULL,
-      NESTOPIA_OVERSCAN_V_INFO_0_CHS,
+      "屏蔽垂直方向上部分潜在的随机的破损画面，这些图像在标准电视屏幕上会在屏幕显示范围之外而被隐藏。",
       NULL,
       "video",
       {
-         { "disabled", NULL },
-         { "enabled",  NULL },
+         { "0", NULL },
+         { "4",  NULL },
+         { "8",  NULL },
+         { "12",  NULL },
+         { "16",  NULL },
+         { "20",  NULL },
+         { "24",  NULL },
          { NULL, NULL },
       },
-      "enabled"
+      "8"
    },
    {
-      "nestopia_overscan_h",
-      NESTOPIA_OVERSCAN_H_LABEL_CHS,
+      "nestopia_overscan_v_bottom",
+      "屏蔽过扫描（垂直方向底部）",
       NULL,
-      NESTOPIA_OVERSCAN_H_INFO_0_CHS,
+      "屏蔽垂直方向上部分潜在的随机的破损画面，这些图像在标准电视屏幕上会在屏幕显示范围之外而被隐藏。",
       NULL,
       "video",
       {
-         { "disabled", NULL },
-         { "enabled",  NULL },
+         { "0", NULL },
+         { "4",  NULL },
+         { "8",  NULL },
+         { "12",  NULL },
+         { "16",  NULL },
+         { "20",  NULL },
+         { "24",  NULL },
          { NULL, NULL },
       },
-      "disabled"
+      "8"
+   },
+   {
+      "nestopia_overscan_h_left",
+      "屏蔽过扫描（垂直方向左侧）",
+      NULL,
+      "屏蔽水平方向上部分潜在的随机的破损画面，这些图像在标准电视屏幕上会在屏幕显示范围之外而被隐藏。",
+      NULL,
+      "video",
+      {
+         { "0", NULL },
+         { "4",  NULL },
+         { "8",  NULL },
+         { "12",  NULL },
+         { "16",  NULL },
+         { NULL, NULL },
+      },
+      "0"
+   },
+   {
+      "nestopia_overscan_h_right",
+      "屏蔽过扫描（垂直方向右侧）",
+      NULL,
+      "屏蔽水平方向上部分潜在的随机的破损画面，这些图像在标准电视屏幕上会在屏幕显示范围之外而被隐藏。",
+      NULL,
+      "video",
+      {
+         { "0", NULL },
+         { "4",  NULL },
+         { "8",  NULL },
+         { "12",  NULL },
+         { "16",  NULL },
+         { NULL, NULL },
+      },
+      "0"
    },
    {
       "nestopia_aspect",
-      NESTOPIA_ASPECT_LABEL_CHS,
+      "首选宽高比",
       NULL,
-      NESTOPIA_ASPECT_INFO_0_CHS,
+      "RetroArch视频设置菜单里的宽高比设置必须设置为‘由核心提供’。‘自动’模式使用NstDatabase.xml数据库文件来自动侦测宽高比，如果没有数据库记录，缺省使用NTSC。",
       NULL,
       "video",
       {
-         { "auto",        OPTION_VAL_AUTO_CHS },
-         { "ntsc",        OPTION_VAL_NTSC_CHS },
-         { "pal",         OPTION_VAL_PAL_CHS },
-         { "4:3",         OPTION_VAL_4_3_CHS },
-         { "uncorrected", OPTION_VAL_UNCORRECTED_CHS },
+         { "auto",        "自动" },
+         { "ntsc",        "NTSC" },
+         { "pal",         "PAL" },
+         { "4:3",         "4:3" },
+         { "uncorrected", "不纠正" },
          { NULL, NULL },
       },
       "auto"
@@ -2465,9 +2514,9 @@ struct retro_core_option_v2_definition option_defs_chs[] = {
 
    {
       "nestopia_genie_distortion",
-      NESTOPIA_GENIE_DISTORTION_LABEL_CHS,
+      "金手指卡声音失真",
       NULL,
-      NESTOPIA_GENIE_DISTORTION_INFO_0_CHS,
+      "金手指卡可能会无意的在游戏中造成声音失真，启用此项可以模拟这些失真。",
       NULL,
       "audio",
       {
@@ -2479,9 +2528,9 @@ struct retro_core_option_v2_definition option_defs_chs[] = {
    },
    {
       "nestopia_show_advanced_av_settings",
-      NESTOPIA_SHOW_ADVANCED_AV_SETTINGS_LABEL_CHS,
+      "显示高级音频设置（需要重新打开菜单）",
       NULL,
-      NESTOPIA_SHOW_ADVANCED_AV_SETTINGS_INFO_0_CHS,
+      "启用低级音频通道的参数配置。",
       NULL,
       "audio",
       {
@@ -2493,9 +2542,9 @@ struct retro_core_option_v2_definition option_defs_chs[] = {
    },
    {
       "nestopia_audio_vol_sq1",
-      NESTOPIA_AUDIO_VOL_SQ1_LABEL_CHS,
+      "方波1声道音量 %",
       NULL,
-      NESTOPIA_AUDIO_VOL_SQ1_INFO_0_CHS,
+      "改变方波1声道的音量 %。",
       NULL,
       "audio",
       {
@@ -2518,9 +2567,9 @@ struct retro_core_option_v2_definition option_defs_chs[] = {
    },
    {
       "nestopia_audio_vol_sq2",
-      NESTOPIA_AUDIO_VOL_SQ2_LABEL_CHS,
+      "方波2声道音量 %",
       NULL,
-      NESTOPIA_AUDIO_VOL_SQ2_INFO_0_CHS,
+      "改变方波2声道的音量 %。",
       NULL,
       "audio",
       {
@@ -2543,9 +2592,9 @@ struct retro_core_option_v2_definition option_defs_chs[] = {
    },
    {
       "nestopia_audio_vol_tri",
-      NESTOPIA_AUDIO_VOL_TRI_LABEL_CHS,
+      "三角波声道音量 %",
       NULL,
-      NESTOPIA_AUDIO_VOL_TRI_INFO_0_CHS,
+      "改变三角波声道音量 %。",
       NULL,
       "audio",
       {
@@ -2568,9 +2617,9 @@ struct retro_core_option_v2_definition option_defs_chs[] = {
    },
    {
       "nestopia_audio_vol_noise",
-      NESTOPIA_AUDIO_VOL_NOISE_LABEL_CHS,
+      "噪音声道音量 %",
       NULL,
-      NESTOPIA_AUDIO_VOL_NOISE_INFO_0_CHS,
+      "改变噪音声道音量 %。",
       NULL,
       "audio",
       {
@@ -2593,9 +2642,9 @@ struct retro_core_option_v2_definition option_defs_chs[] = {
    },
    {
       "nestopia_audio_vol_dpcm",
-      NESTOPIA_AUDIO_VOL_DPCM_LABEL_CHS,
+      "DPCM声道音量 %",
       NULL,
-      NESTOPIA_AUDIO_VOL_DPCM_INFO_0_CHS,
+      "修改DPCM声道音量 %。",
       NULL,
       "audio",
       {
@@ -2618,9 +2667,9 @@ struct retro_core_option_v2_definition option_defs_chs[] = {
    },
    {
       "nestopia_audio_vol_fds",
-      NESTOPIA_AUDIO_VOL_FDS_LABEL_CHS,
+      "磁碟机声道音量 %",
       NULL,
-      NESTOPIA_AUDIO_VOL_FDS_INFO_0_CHS,
+      "修改磁碟机声道音量 %。",
       NULL,
       "audio",
       {
@@ -2643,9 +2692,9 @@ struct retro_core_option_v2_definition option_defs_chs[] = {
    },
    {
       "nestopia_audio_vol_mmc5",
-      NESTOPIA_AUDIO_VOL_MMC5_LABEL_CHS,
+      "MMC5声道音量 %",
       NULL,
-      NESTOPIA_AUDIO_VOL_MMC5_INFO_0_CHS,
+      "修改MMC5声道音量 %。",
       NULL,
       "audio",
       {
@@ -2668,9 +2717,9 @@ struct retro_core_option_v2_definition option_defs_chs[] = {
    },
    {
       "nestopia_audio_vol_vrc6",
-      NESTOPIA_AUDIO_VOL_VRC6_LABEL_CHS,
+      "VRC6声道音量 %",
       NULL,
-      NESTOPIA_AUDIO_VOL_VRC6_INFO_0_CHS,
+      "修改VRC6声道音量 %。",
       NULL,
       "audio",
       {
@@ -2693,9 +2742,9 @@ struct retro_core_option_v2_definition option_defs_chs[] = {
    },
    {
       "nestopia_audio_vol_vrc7",
-      NESTOPIA_AUDIO_VOL_VRC7_LABEL_CHS,
+      "VRC7声道音量 %",
       NULL,
-      NESTOPIA_AUDIO_VOL_VRC7_INFO_0_CHS,
+      "修改VRC7声道音量 %。",
       NULL,
       "audio",
       {
@@ -2718,9 +2767,9 @@ struct retro_core_option_v2_definition option_defs_chs[] = {
    },
    {
       "nestopia_audio_vol_n163",
-      NESTOPIA_AUDIO_VOL_N163_LABEL_CHS,
+      "N163声道音量 %",
       NULL,
-      NESTOPIA_AUDIO_VOL_N163_INFO_0_CHS,
+      "修改N163声道音量 %。",
       NULL,
       "audio",
       {
@@ -2743,9 +2792,9 @@ struct retro_core_option_v2_definition option_defs_chs[] = {
    },
    {
       "nestopia_audio_vol_s5b",
-      NESTOPIA_AUDIO_VOL_S5B_LABEL_CHS,
+      "S5B声道音量 %",
       NULL,
-      NESTOPIA_AUDIO_VOL_S5B_INFO_0_CHS,
+      "修改S5B声道音量 %。",
       NULL,
       "audio",
       {
@@ -2768,14 +2817,14 @@ struct retro_core_option_v2_definition option_defs_chs[] = {
    },
    {
       "nestopia_audio_type",
-      NESTOPIA_AUDIO_TYPE_LABEL_CHS,
+      "音频输出",
       NULL,
-      NESTOPIA_AUDIO_TYPE_INFO_0_CHS,
+      "指定单声道还是立体声输出。",
       NULL,
       "audio",
       {
-         { "mono", OPTION_VAL_MONO_CHS },
-         { "stereo", OPTION_VAL_STEREO_CHS },
+         { "mono", "单声道" },
+         { "stereo", "立体声" },
       },
       "stereo"
    },
@@ -2784,24 +2833,24 @@ struct retro_core_option_v2_definition option_defs_chs[] = {
 
    {
       "nestopia_select_adapter",
-      NESTOPIA_SELECT_ADAPTER_LABEL_CHS,
+      "4分插适配器",
       NULL,
-      NESTOPIA_SELECT_ADAPTER_INFO_0_CHS,
+      "手动选择需要的4分插适配器。有些游戏无法通过NstDatabase.xml来识别适配器，此选项有助于修复此问题。",
       NULL,
       "input",
       {
-         { "auto",    OPTION_VAL_AUTO_CHS },
-         { "ntsc",    OPTION_VAL_NTSC_CHS },
-         { "famicom", OPTION_VAL_FAMICOM_CHS },
+         { "auto",    "自动" },
+         { "ntsc",    "NTSC" },
+         { "famicom", "日版FC" },
          { NULL, NULL },
       },
       "auto"
    },
    {
       "nestopia_button_shift",
-      NESTOPIA_BUTTON_SHIFT_LABEL_CHS,
+      "顺时针旋转按键位置",
       NULL,
-      NESTOPIA_BUTTON_SHIFT_INFO_0_CHS, /* is this right? @gadsby */
+      "顺时针方向旋转A/B/X/Y按键的位置。", /* is this right? @gadsby */
       NULL,
       "input",
       {
@@ -2813,37 +2862,51 @@ struct retro_core_option_v2_definition option_defs_chs[] = {
    },
    {
       "nestopia_arkanoid_device",
-      NESTOPIA_ARKANOID_DEVICE_LABEL_CHS,
+      "打砖块设备",
       NULL,
-      NESTOPIA_ARKANOID_DEVICE_INFO_0_CHS,
+      "选择用来模拟打砖块控制器的设备。",
       NULL,
       "input",
       {
-         { "mouse", OPTION_VAL_MOUSE_CHS },
-         { "pointer", OPTION_VAL_POINTER_CHS },
+         { "mouse", "鼠标" },
+         { "pointer", "指针" },
       },
       "mouse"
    },
    {
-      "nestopia_zapper_device",
-      NESTOPIA_ZAPPER_DEVICE_LABEL_CHS,
+      "nestopia_arkanoid_paddle_range",
+      "打砖块控制器范围",
       NULL,
-      NESTOPIA_ZAPPER_DEVICE_INFO_0_CHS,
+      "设置打砖块控制器的范围。",
       NULL,
       "input",
       {
-         { "lightgun", OPTION_VAL_LIGHTGUN_CHS },
-         { "mouse", OPTION_VAL_MOUSE_CHS },
-         { "pointer", OPTION_VAL_POINTER_CHS },
+         { "combined", "合并两种控制器的范围 (32-166)"},
+         { "arkanoidI", "一代打砖块控制器范围 (46-166)"},
+         { "arkanoidII", "二代打砖块控制器范围 (32-153)"}
+      },
+      "combined"
+   },
+   {
+      "nestopia_zapper_device",
+      "光枪设备",
+      NULL,
+      "选择希望使用的光枪设备。",
+      NULL,
+      "input",
+      {
+         { "lightgun", "光枪" },
+         { "mouse", "鼠标" },
+         { "pointer", "指针" },
          { NULL, NULL },
       },
       "lightgun",
    },
    {
       "nestopia_show_crosshair",
-      NESTOPIA_SHOW_CROSSHAIR_LABEL_CHS,
+      "显示准心",
       NULL,
-      NESTOPIA_SHOW_CROSSHAIR_INFO_0_CHS,
+      "选择使用光枪时是否显示准心。",
       NULL,
       "input",
       {
@@ -2854,9 +2917,9 @@ struct retro_core_option_v2_definition option_defs_chs[] = {
    },
    {
       "nestopia_turbo_pulse",
-      NESTOPIA_TURBO_PULSE_LABEL_CHS,
+      "连发键速度",
       NULL,
-      NESTOPIA_TURBO_PULSE_INFO_0_CHS,
+      "选择连发键B和A的连发速度。",
       NULL,
       "input",
       {
@@ -2877,9 +2940,9 @@ struct retro_core_option_v2_definition option_defs_chs[] = {
 
    {
       "nestopia_nospritelimit",
-      NESTOPIA_NOSPRITELIMIT_LABEL_CHS,
+      "移除角色数限制",
       NULL,
-      NESTOPIA_NOSPRITELIMIT_INFO_0_CHS,
+      "移除每条扫描线8个角色数量的硬件限制。",
       NULL,
       "hacks",
       {
@@ -2891,35 +2954,36 @@ struct retro_core_option_v2_definition option_defs_chs[] = {
    },
    {
       "nestopia_overclock",
-      NESTOPIA_OVERCLOCK_LABEL_CHS,
+      "CPU速度（超频）",
       NULL,
-      NESTOPIA_OVERCLOCK_INFO_0_CHS,
+      "对模拟的CPU进行超频。",
       NULL,
       "hacks",
       {
-         { "1x", OPTION_VAL_1X_CHS },
-         { "2x", OPTION_VAL_2X_CHS },
+         { "1x", NULL },
+         { "2x", NULL },
          { NULL, NULL },
       },
       "1x"
    },
    {
       "nestopia_ram_power_state",
-      NESTOPIA_RAM_POWER_STATE_LABEL_CHS,
+      "内存加电状态",
       NULL,
-      NESTOPIA_RAM_POWER_STATE_INFO_0_CHS,
+      "开机时的内存值。有些游戏依赖初始内存值来实现诸如随机数生成等功能。",
       NULL,
       "hacks",
       {
-         { "0x00",   OPTION_VAL_0X00_CHS },
-         { "0xFF",   OPTION_VAL_0XFF_CHS },
-         { "random", OPTION_VAL_RANDOM_CHS },
+         { "0x00",   NULL },
+         { "0xFF",   NULL },
+         { "random", "Random" },
          { NULL, NULL },
       },
       "0x00"
    },
    { NULL, NULL, NULL, NULL, NULL, NULL, {{0}}, NULL },
 };
+
 struct retro_core_options_v2 options_chs = {
    option_cats_chs,
    option_defs_chs
